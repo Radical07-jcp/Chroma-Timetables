@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Real theming (colors, shapes) lives in Compose — designsystem/Theme.kt.
+         This XML theme only needs to exist to satisfy the manifest before the
+         Compose window is set; NoActionBar keeps the system chrome out of the way. -->
+    <style name="Theme.CromaScheduler" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
