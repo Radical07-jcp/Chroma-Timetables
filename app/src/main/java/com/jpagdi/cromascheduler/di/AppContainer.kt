@@ -1,8 +1,8 @@
 package com.jpagdi.cromascheduler.di
 
 import android.content.Context
-import androidx.room.Room
 import com.jpagdi.cromascheduler.data.db.CromaDatabase
+import com.jpagdi.cromascheduler.data.db.buildCromaDatabase
 import com.jpagdi.cromascheduler.data.export.CsvScheduleExporter
 import com.jpagdi.cromascheduler.data.export.PdfScheduleExporter
 import com.jpagdi.cromascheduler.data.export.XlsxScheduleExporter
@@ -17,11 +17,7 @@ import com.jpagdi.cromascheduler.data.repository.ScheduleRepository
  * CompositionLocal (see LocalAppContainer below).
  */
 class AppContainer(context: Context) {
-    val database: CromaDatabase = Room.databaseBuilder(
-        context.applicationContext,
-        CromaDatabase::class.java,
-        CromaDatabase.DATABASE_NAME,
-    ).build()
+    val database: CromaDatabase = buildCromaDatabase(context)
 
     val scheduleRepository = ScheduleRepository(database)
     val csvImportService = CsvImportService(database)
