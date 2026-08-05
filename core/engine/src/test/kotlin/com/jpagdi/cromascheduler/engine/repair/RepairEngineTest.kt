@@ -1,0 +1,50 @@
+package com.jpagdi.cromascheduler.engine.repair
+
+import com.jpagdi.cromascheduler.engine.SchedulingInput
+import com.jpagdi.cromascheduler.engine.model.EngineSession
+import com.jpagdi.cromascheduler.engine.model.SessionType
+import com.jpagdi.cromascheduler.engine.model.Timeslot
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class RepairEngineTest {
+
+    private val weekPool = (1..5).flatMap { day -> (0..7).map { period -> Timeslot(day, period) } }
+
+    private fun session(id: String, teacherId: String? = null) =
+        EngineSession(id, SessionType.CLASS, "SUBJ", teacherId, null)
+
+    @Test
+    fun `preserves a session with no conflict and only recolors the conflicting pair`() {
+        val sessions = listOf(
+            session("VALID", teacherId = "T3"),
+            session("CONFLICT_A", teacherId = "T1"),
+            session("CONFLICT_B", teacherId = "T1"),
+        )
+        val input = SchedulingInput(
+            sessions = sessions,
+            availableTimeslotsBySession = sessions.associate { it.id to weekPool },
+            rooms = emptyList(),
+            sectionStudentCounts = emptyMap(),
+            blockedTeacherSlots = emptyMap(),
+            blockedRoomSlots = emptyMap(),
+            definedPeriodsByDay = mapOf(1 to (0..7).toSet()),
+        )
+        // CONFLICT_A and CONFLICT_B illegally share the exact same slot; VALID sits elsewhere.
+        val existingAssignments = mapOf(
+            "VALID" to Timeslot(1, 5),
+            "CONFLICT_A" to Timeslot(1, 0),
+            "CONFLICT_B" to Timeslot(1, 0),
+        )
+
+        val result = RepairEngine.repair(input, existingAssignments, emptyMap())
+
+        assertEquals(Timeslot(1, 5), result.assignments["VALID"], "The untouched valid session's timeslot must not change")
+        assertTrue("VALID" in result.preservedSessionIds)
+        assertTrue("CONFLICT_A" in result.recoloredSessionIds)
+        assertTrue("CONFLICT_B" in result.recoloredSessionIds)
+        assertTrue(result.assignments.getValue("CONFLICT_A") != result.assignments.getValue("CONFLICT_B"), "Repair must resolve the double-booking")
+        assertTrue(result.remainingViolations.isEmpty())
+    }
+}

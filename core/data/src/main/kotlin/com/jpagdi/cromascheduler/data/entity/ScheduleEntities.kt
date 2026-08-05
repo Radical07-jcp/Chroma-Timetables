@@ -59,6 +59,7 @@ data class ScheduleRunEntity(
     val createdAtEpochMillis: Long,
     val algorithmUsed: String,
     val mode: String, // GENERATE / GENERATE_EXAM / REPAIR / OPTIMIZE
+    val executionTimeMillis: Long = 0,
 )
 
 @Entity(

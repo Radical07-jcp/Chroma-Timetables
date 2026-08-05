@@ -33,11 +33,61 @@ Kotlin, Jetpack Compose, Room, MVVM, multi-module.
       edge for every pair that shares either. Explicit user-defined conflict
       links are not yet wired to any data model field — `addLinkedConflicts()`
       is a documented extension seam for when that's needed.
-- [ ] Phase 4 — Graph coloring scheduling engine (Greedy, Welsh-Powell, DSATUR)
-- [ ] Phase 5 — Constraint validation and conflict detection
-- [ ] Phase 6 — Conflict repair and schedule optimization
-- [ ] Phase 7 — Android UI (navigation, all destination screens, results screens)
-- [ ] Phase 8 — Export (CSV/Excel/PDF/print) and testing
+- [x] **Phase 4 — Graph coloring scheduling engine.** `GreedyColoring`,
+      `WelshPowellColoring`, `DsaturColoring` (default per spec) all implement the
+      `ColoringAlgorithm` interface and are registered in
+      `ColoringAlgorithmRegistry`. A "color" is a start `Timeslot`; multi-period
+      sessions reserve a contiguous same-day run (`ColoringSupport.findValidStart`).
+      `fixedAssignments` lets any algorithm pin some sessions in place — this is
+      what Repair mode (Phase 6) reuses instead of a separate code path. Also added:
+      `RoomAssigner` (the separate post-coloring resource-assignment pass decided
+      in Phase 1) and `SchedulingEngine`, the facade Generate mode calls end to end.
+- [x] **Phase 5 — Constraint validation and conflict detection.**
+      `ConstraintValidator` checks every hard constraint from the spec (teacher/
+      room/section double-booking, teacher/room availability, room capacity,
+      duration-fits-in-day) against a fully-formed schedule and returns typed
+      `ConstraintViolation`s. Soft constraints are NOT pass/fail here — they're
+      scored separately in Phase 6.
+- [x] **Phase 6 — Conflict repair and schedule optimization.** `RepairEngine`
+      detects conflicts via ConstraintValidator, preserves every session not
+      involved in one, and recolors only the rest (spec: "recalculate only the
+      conflicting sessions"). `ScheduleQualityScorer` quantifies all five soft
+      constraints (teacher idle time, room changes, section compactness, morning
+      preference, room utilization) into one comparable score; `ScheduleOptimizer`
+      is a bounded, deterministic local search that improves that score without
+      ever violating a hard constraint or changing a session's room.
+- [x] **Phase 7 — Android UI.** `ScheduleRepository` (:core:data) bridges Room
+      entities to the engine and back — every mode (Generate/Generate Exam/
+      Validate/Repair/Optimize) goes through it. Hand-rolled navigation (no
+      Navigation-Compose dependency — see `Screen.kt`) between Home, Import,
+      Generate, Validate, Repair, Results (Weekly/Daily/Teacher/Room/Section tabs
+      + statistics), and Export. ViewModels (`ImportViewModel`, `ScheduleViewModel`,
+      `ResultsViewModel`, `ExportViewModel`) wired through a manual `AppContainer`
+      (no Hilt/Koin — see its doc comment).
+- [x] **Phase 8 — Export and testing.** `CsvScheduleExporter` (plain text),
+      `XlsxScheduleExporter` (hand-rolled minimal valid .xlsx — no POI dependency,
+      see its doc comment), `PdfScheduleExporter` (Android's built-in
+      `PdfDocument`, no dependency). Print reuses the same PDF via
+      `PdfPrintDocumentAdapter` + `PrintManager`. Files share out through
+      `FileProvider` (scoped to just the app's cache/exports folder).
+      **Testing scope note:** engine unit tests (coloring, validation, repair) run
+      on plain JVM and are included — I can't run them myself (no network/JVM
+      execution in this sandbox) so they're unverified until you run them in
+      Codespaces. Instrumented/UI tests aren't included — they'd need a real
+      device or emulator, which isn't available here either; flag if you want a
+      basic Compose UI test scaffold added later.
+
+## What genuinely needs your review
+
+- **CSV column layouts are my best guess** (Phase 2) — see the callout at the top
+  of `EntityCsvParsers.kt` / `SessionAvailabilityCsvParsers.kt`.
+- **This has never been compiled.** No network access on my end means no Gradle
+  dependency resolution, so I could not build or run this project even once.
+  Everything above is written to compile based on the documented APIs of Room,
+  Compose, and the Android SDK versions declared in the Gradle files, but the
+  first real signal will be your build in Codespaces. If it fails, send me the
+  error and I'll fix it directly — don't spend time debugging Gradle/AGP version
+  mismatches yourself first.
 
 ## Module boundaries (do not violate)
 
