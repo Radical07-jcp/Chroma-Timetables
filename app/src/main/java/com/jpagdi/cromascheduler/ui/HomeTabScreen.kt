@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -113,7 +112,7 @@ private fun GenerateScheduleHeroCard(onClick: () -> Unit) {
                         .background(Color.Black.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(ArrowForward, contentDescription = "Open", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Open", tint = Color.White)
                 }
             }
             Spacer(Modifier.height(16.dp))

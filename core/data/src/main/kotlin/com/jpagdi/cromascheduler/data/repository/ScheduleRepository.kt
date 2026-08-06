@@ -243,6 +243,23 @@ class ScheduleRepository(private val database: CromaDatabase) {
     suspend fun getPeriodConfig(): PeriodConfigEntity = database.periodConfigDao().get() ?: PeriodConfigEntity.DEFAULT
 
     /**
+     * Called once at app startup (see AppContainer). If no period config has ever
+     * been saved, this seeds the built-in default and generates its timeslot grid
+     * — otherwise Generate silently produces nothing at all on a fresh install,
+     * since every session's candidate pool comes from the `timeslots` table and
+     * that table starts empty. getPeriodConfig() already falls back to
+     * PeriodConfigEntity.DEFAULT for *display* purposes, but a fallback value
+     * that's never persisted doesn't help buildSchedulingInput(), which reads the
+     * `timeslots` table directly. This makes the default real, not just a UI
+     * placeholder, while Settings → Define Periods remains how you change it.
+     */
+    suspend fun ensureDefaultPeriodConfigExists() {
+        if (database.periodConfigDao().get() == null) {
+            savePeriodConfigAndRegenerate(PeriodConfigEntity.DEFAULT)
+        }
+    }
+
+    /**
      * Saves a new period configuration and regenerates the entire timeslot grid
      * from it. This intentionally REPLACES all timeslots rather than diffing —
      * changing period length invalidates every existing timeslot's meaning

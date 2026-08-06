@@ -34,7 +34,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 1,
+    version = 2, // bumped: PeriodConfigEntity changed from flat fields to an encoded block list (see PeriodBlock)
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

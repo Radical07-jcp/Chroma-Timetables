@@ -52,7 +52,7 @@ fun TeacherAvailabilityScreen(teacherId: String, teacherName: String, onBack: ()
                         }
                     }
                 }
-                items(config.periodsPerDay) { period ->
+                items(config.totalPeriodsPerDay()) { period ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("P${period + 1}", modifier = Modifier.width(56.dp), style = MaterialTheme.typography.labelMedium)
                         dayLabels.forEach { (day, _) ->
