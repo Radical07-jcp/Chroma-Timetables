@@ -112,7 +112,7 @@ private fun GenerateScheduleHeroCard(onClick: () -> Unit) {
                         .background(Color.Black.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Open", tint = Color.White)
+                    Icon(Icons.Filled.ArrowForward, contentDescription = "Open", tint = Color.White)
                 }
             }
             Spacer(Modifier.height(16.dp))
