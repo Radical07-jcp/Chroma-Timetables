@@ -38,33 +38,37 @@ fun GenerateScreen(onBack: () -> Unit, onGenerated: (runId: String) -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Schedule name") },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Schedule name") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = isExamMode, onCheckedChange = { isExamMode = it })
-                Spacer(Modifier.width(8.dp))
-                Text(if (isExamMode) "Examination schedule (EXAM sessions only)" else "Regular schedule (all sessions)")
-            }
-
-            Box {
-                OutlinedButton(onClick = { algorithmMenuExpanded = true }) {
-                    Text("Algorithm: ${algorithm.ifBlank { "dsatur" }}")
-                }
-                DropdownMenu(expanded = algorithmMenuExpanded, onDismissRequest = { algorithmMenuExpanded = false }) {
-                    viewModel.algorithmNames.forEach { name ->
-                        DropdownMenuItem(text = { Text(name) }, onClick = { algorithm = name; algorithmMenuExpanded = false })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = isExamMode, onCheckedChange = { isExamMode = it })
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isExamMode) "Examination schedule (EXAM sessions only)" else "Regular schedule (all sessions)")
                     }
+
+                    Box {
+                        OutlinedButton(onClick = { algorithmMenuExpanded = true }) {
+                            Text("Algorithm: ${algorithm.ifBlank { "dsatur" }}")
+                        }
+                        DropdownMenu(expanded = algorithmMenuExpanded, onDismissRequest = { algorithmMenuExpanded = false }) {
+                            viewModel.algorithmNames.forEach { name ->
+                                DropdownMenuItem(text = { Text(name) }, onClick = { algorithm = name; algorithmMenuExpanded = false })
+                            }
+                        }
+                    }
+                    Text(
+                        "DSATUR is the default — it adapts as it colors and generally produces the fewest wasted timeslots. Greedy and Welsh-Powell are here for comparison.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
-            Text(
-                "DSATUR is the default — it adapts as it colors and generally produces the fewest wasted timeslots. Greedy and Welsh-Powell are here for comparison.",
-                style = MaterialTheme.typography.bodySmall,
-            )
 
             val state = viewModel.operationState
             Button(

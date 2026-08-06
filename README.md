@@ -1,7 +1,9 @@
-# CromaScheduler
+# Chroma Timetables
 
 Offline, on-device schedule generator using graph-coloring algorithms (Greedy,
-Welsh-Powell, DSATUR). No AI/ML — all scheduling decisions are deterministic.
+Welsh-Powell, DSATUR). No AI/ML, no cloud — every schedule is built entirely on
+the device, deterministically. Same data + same algorithm always produces the
+same result.
 
 Kotlin, Jetpack Compose, Room, MVVM, multi-module.
 
@@ -77,8 +79,21 @@ Kotlin, Jetpack Compose, Room, MVVM, multi-module.
       device or emulator, which isn't available here either; flag if you want a
       basic Compose UI test scaffold added later.
 
-## What genuinely needs your review
+## Post-launch: rebrand + period configuration
 
+Renamed to Chroma Timetables (app name, launcher icon from the supplied logo,
+Home screen redesigned to a status-overview + workflow-cards layout, bottom
+navigation with Home/Timetable/Teachers/Settings tabs). The "no AI" requirement
+is stated explicitly in the Settings tab's About panel.
+
+Also closed the timeslot gap flagged earlier: `PeriodConfigEntity` +
+`TimeslotGenerator` (`:core:data/timeslot`) let each school set its own period
+length (default 60 min, any custom value), periods per day, active days, and
+an optional single daily break — Settings → Define Periods. Per-teacher
+unavailability can now be set in-app too (Teachers tab → tap a teacher → tap
+periods to toggle), not just via `availability.csv`.
+
+## What genuinely needs your review
 - **CSV column layouts are my best guess** (Phase 2) — see the callout at the top
   of `EntityCsvParsers.kt` / `SessionAvailabilityCsvParsers.kt`.
 - **This has never been compiled.** No network access on my end means no Gradle

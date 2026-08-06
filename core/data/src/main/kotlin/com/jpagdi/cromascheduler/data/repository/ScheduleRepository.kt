@@ -4,10 +4,12 @@ import androidx.room.withTransaction
 import com.jpagdi.cromascheduler.data.db.CromaDatabase
 import com.jpagdi.cromascheduler.data.entity.AvailabilityEntityType
 import com.jpagdi.cromascheduler.data.entity.ConflictRecordEntity
+import com.jpagdi.cromascheduler.data.entity.PeriodConfigEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleAssignmentEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.entity.SessionEntity
 import com.jpagdi.cromascheduler.data.export.ScheduleExportRow
+import com.jpagdi.cromascheduler.data.timeslot.TimeslotGenerator
 import com.jpagdi.cromascheduler.engine.SchedulingEngine
 import com.jpagdi.cromascheduler.engine.SchedulingInput
 import com.jpagdi.cromascheduler.engine.SchedulingOutput
@@ -208,6 +210,58 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     suspend fun getRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAll()
+
+    suspend fun getTeachers(): List<com.jpagdi.cromascheduler.data.entity.TeacherEntity> = database.teacherDao().getAll()
+
+    data class HomeCounts(val teachers: Int, val subjects: Int, val rooms: Int, val sessions: Int)
+
+    suspend fun getHomeCounts(): HomeCounts = HomeCounts(
+        teachers = database.teacherDao().getAll().size,
+        subjects = database.subjectDao().getAll().size,
+        rooms = database.roomDao().getAll().size,
+        sessions = database.sessionDao().getAll().size,
+    )
+
+    /** A teacher's currently blocked (unavailable) periods, for rendering the toggle grid. */
+    suspend fun getTeacherBlockedSlots(teacherId: String): Set<Timeslot> =
+        database.availabilityDao().getBlocksFor(AvailabilityEntityType.TEACHER, teacherId)
+            .map { Timeslot(it.dayOfWeek, it.periodIndex) }
+            .toSet()
+
+    /** In-app equivalent of a row in availability.csv — lets a teacher mark/unmark a single period without a fresh CSV import. */
+    suspend fun setTeacherBlocked(teacherId: String, day: Int, period: Int, blocked: Boolean) {
+        if (blocked) {
+            database.availabilityDao().upsert(
+                com.jpagdi.cromascheduler.data.entity.AvailabilityBlockEntity(AvailabilityEntityType.TEACHER, teacherId, day, period),
+            )
+        } else {
+            database.availabilityDao().deleteBlock(AvailabilityEntityType.TEACHER, teacherId, day, period)
+        }
+    }
+
+    /** Current period configuration, or the built-in default (60-min periods, Mon-Fri, 8/day) if none has been set yet. */
+    suspend fun getPeriodConfig(): PeriodConfigEntity = database.periodConfigDao().get() ?: PeriodConfigEntity.DEFAULT
+
+    /**
+     * Saves a new period configuration and regenerates the entire timeslot grid
+     * from it. This intentionally REPLACES all timeslots rather than diffing —
+     * changing period length invalidates every existing timeslot's meaning
+     * (period 3 at 45 minutes and period 3 at 60 minutes are not the same slot),
+     * so a partial merge would be actively misleading. Any schedule runs
+     * generated before a regeneration keep their saved (dayOfWeek, periodIndex)
+     * assignments, but re-running Validate against them afterward may surface
+     * new DURATION_EXCEEDS_AVAILABLE_PERIODS violations if the new grid is
+     * shorter — that's correct behavior, not a bug, and is exactly what
+     * Validate mode is for.
+     */
+    suspend fun savePeriodConfigAndRegenerate(config: PeriodConfigEntity) {
+        val timeslots = TimeslotGenerator.generate(config)
+        database.withTransaction {
+            database.periodConfigDao().upsert(config)
+            database.timeslotDao().clear()
+            database.timeslotDao().upsertAll(timeslots)
+        }
+    }
 
     suspend fun getAssignments(runId: String): List<ScheduleAssignmentEntity> = database.scheduleRunDao().getAssignmentsFor(runId)
 

@@ -4,15 +4,23 @@ import android.content.Intent
 import android.print.PrintAttributes
 import android.print.PrintManager
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jpagdi.cromascheduler.designsystem.CromaAccents
+import com.jpagdi.cromascheduler.designsystem.DashboardCard
 import com.jpagdi.cromascheduler.di.LocalAppContainer
 import com.jpagdi.cromascheduler.export.PdfPrintDocumentAdapter
 import com.jpagdi.cromascheduler.viewmodel.ExportFormat
@@ -38,13 +46,13 @@ fun ExportScreen(runId: String, runName: String, onBack: () -> Unit) {
             Text("Export \"$runName\" as:", style = MaterialTheme.typography.titleMedium)
 
             ExportFormat.entries.forEach { format ->
-                Button(
+                DashboardCard(
+                    title = format.label,
+                    subtitle = subtitleFor(format),
+                    icon = iconFor(format),
+                    accent = accentFor(format),
                     onClick = { viewModel.export(context, runId, runName, format) },
-                    enabled = !viewModel.isExporting,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(format.label)
-                }
+                )
             }
 
             if (viewModel.isExporting) {
@@ -62,29 +70,54 @@ fun ExportScreen(runId: String, runName: String, onBack: () -> Unit) {
                 val uri = FileProvider.getUriForFile(context, authority, file)
                 val isPdf = file.extension == "pdf"
 
-                Text("Ready: ${file.name}", color = MaterialTheme.colorScheme.primary)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Ready: ${file.name}", color = MaterialTheme.colorScheme.primary)
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = {
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = mimeTypeFor(file.extension)
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = mimeTypeFor(file.extension)
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share schedule"))
+                            }) { Text("Share") }
+
+                            if (isPdf) {
+                                OutlinedButton(onClick = {
+                                    val printManager = context.getSystemService(PrintManager::class.java)
+                                    val adapter = PdfPrintDocumentAdapter(context, file, runName)
+                                    printManager?.print(runName, adapter, PrintAttributes.Builder().build())
+                                }) { Text("Print") }
+                            }
                         }
-                        context.startActivity(Intent.createChooser(intent, "Share schedule"))
-                    }) { Text("Share") }
-
-                    if (isPdf) {
-                        OutlinedButton(onClick = {
-                            val printManager = context.getSystemService(PrintManager::class.java)
-                            val adapter = PdfPrintDocumentAdapter(context, file, runName)
-                            printManager?.print(runName, adapter, PrintAttributes.Builder().build())
-                        }) { Text("Print") }
                     }
                 }
             }
         }
     }
+}
+
+private fun subtitleFor(format: ExportFormat): String = when (format) {
+    ExportFormat.CSV -> "Plain text, opens in any spreadsheet app"
+    ExportFormat.EXCEL -> "Formatted .xlsx workbook"
+    ExportFormat.PDF -> "Paginated document, ready to share"
+    ExportFormat.PRINT -> "Same PDF, sent straight to a printer"
+}
+
+private fun iconFor(format: ExportFormat): ImageVector = when (format) {
+    ExportFormat.CSV -> Icons.Filled.Description
+    ExportFormat.EXCEL -> Icons.Filled.TableChart
+    ExportFormat.PDF -> Icons.Filled.Article
+    ExportFormat.PRINT -> Icons.Filled.Print
+}
+
+private fun accentFor(format: ExportFormat) = when (format) {
+    ExportFormat.CSV -> CromaAccents.Teal
+    ExportFormat.EXCEL -> CromaAccents.Indigo
+    ExportFormat.PDF -> CromaAccents.Amber
+    ExportFormat.PRINT -> CromaAccents.Maroon
 }
 
 private fun mimeTypeFor(extension: String): String = when (extension) {

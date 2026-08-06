@@ -29,6 +29,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         SessionEntity::class,
         AvailabilityBlockEntity::class,
         TimeslotEntity::class,
+        PeriodConfigEntity::class,
         ScheduleRunEntity::class,
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
@@ -45,6 +46,7 @@ abstract class CromaDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun availabilityDao(): AvailabilityDao
     abstract fun timeslotDao(): TimeslotDao
+    abstract fun periodConfigDao(): PeriodConfigDao
     abstract fun scheduleRunDao(): ScheduleRunDao
 
     companion object {

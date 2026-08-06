@@ -1,14 +1,20 @@
 package com.jpagdi.cromascheduler.navigation
 
 /**
- * Deliberately a hand-rolled sealed class + mutableStateOf back stack instead of
- * androidx.navigation:navigation-compose. The app's whole flow is Home -> one of
- * five destinations -> (optionally) Results, with no deep links and no need for
- * saved back-stack state across process death yet — a real nav graph dependency
- * isn't earning its keep at this size. Revisit if the flow grows more branches.
+ * Hand-rolled sealed class + mutableStateOf back stack, no Navigation-Compose
+ * dependency — see the original doc comment logic: the app's flow doesn't need
+ * deep links or saved back-stack state across process death yet.
+ *
+ * The four *Tab screens are the bottom-nav destinations (bottom bar visible only
+ * when the back stack is exactly one of these). Everything else pushes on top
+ * with its own back button and no bottom bar, same pattern as before.
  */
 sealed class Screen {
-    data object Home : Screen()
+    data object HomeTab : Screen()
+    data object TimetableTab : Screen()
+    data object TeachersTab : Screen()
+    data object SettingsTab : Screen()
+
     data object Import : Screen()
     data object Generate : Screen()
     data class PickRunForValidate(val placeholder: Unit = Unit) : Screen()
@@ -17,5 +23,11 @@ sealed class Screen {
     data class Repair(val runId: String) : Screen()
     data class Results(val runId: String) : Screen()
     data class PickRunForExport(val placeholder: Unit = Unit) : Screen()
-    data class Export(val runId: String) : Screen()
+    data class Export(val runId: String, val runName: String) : Screen()
+    data class TeacherAvailability(val teacherId: String, val teacherName: String) : Screen()
+    data object DefinePeriods : Screen()
+
+    companion object {
+        val bottomTabs = listOf(HomeTab, TimetableTab, TeachersTab, SettingsTab)
+    }
 }

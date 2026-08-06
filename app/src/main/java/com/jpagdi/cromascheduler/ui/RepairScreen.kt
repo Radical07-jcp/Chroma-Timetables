@@ -37,15 +37,19 @@ fun RepairScreen(runId: String, onBack: () -> Unit, onRepaired: (newRunId: Strin
         ) {
             when (val state = viewModel.operationState) {
                 is OperationUiState.ValidateDone -> {
-                    if (state.violations.isEmpty()) {
-                        Text("No conflicts found — nothing to repair.", style = MaterialTheme.typography.titleMedium)
-                    } else {
-                        Text(
-                            "${state.violations.size} conflict(s) found. Repair preserves every session that's already valid and only recalculates the ones involved in a conflict.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Button(onClick = { viewModel.repair(runId, "dsatur") }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Repair")
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (state.violations.isEmpty()) {
+                                Text("No conflicts found — nothing to repair.", style = MaterialTheme.typography.titleMedium)
+                            } else {
+                                Text(
+                                    "${state.violations.size} conflict(s) found. Repair preserves every session that's already valid and only recalculates the ones involved in a conflict.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Button(onClick = { viewModel.repair(runId, "dsatur") }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Repair")
+                                }
+                            }
                         }
                     }
                 }

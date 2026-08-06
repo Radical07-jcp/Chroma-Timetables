@@ -45,23 +45,36 @@ fun ImportScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { zipLauncher.launch("application/zip") }) { Text("Choose zip") }
-                OutlinedButton(onClick = { filesLauncher.launch("text/*") }) { Text("Choose CSV files") }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { zipLauncher.launch("application/zip") }) { Text("Choose zip") }
+                        OutlinedButton(onClick = { filesLauncher.launch("text/*") }) { Text("Choose CSV files") }
+                    }
+
+                    when (val state = viewModel.uiState) {
+                        is ImportUiState.Idle -> Unit
+                        is ImportUiState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Importing…")
+                        }
+                        is ImportUiState.Failed -> Text(
+                            "Import failed: ${state.message}",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        is ImportUiState.Done -> Unit
+                    }
+                }
             }
 
-            when (val state = viewModel.uiState) {
-                is ImportUiState.Idle -> Unit
-                is ImportUiState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Importing…")
+            val doneState = viewModel.uiState as? ImportUiState.Done
+            if (doneState != null) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        ImportResultView(doneState)
+                    }
                 }
-                is ImportUiState.Failed -> Text(
-                    "Import failed: ${state.message}",
-                    color = MaterialTheme.colorScheme.error,
-                )
-                is ImportUiState.Done -> ImportResultView(state)
             }
         }
     }

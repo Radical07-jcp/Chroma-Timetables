@@ -71,8 +71,14 @@ interface AvailabilityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(blocks: List<AvailabilityBlockEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(block: AvailabilityBlockEntity)
+
     @Query("SELECT * FROM availability_blocks WHERE entityType = :type AND entityId = :entityId")
     suspend fun getBlocksFor(type: AvailabilityEntityType, entityId: String): List<AvailabilityBlockEntity>
+
+    @Query("DELETE FROM availability_blocks WHERE entityType = :type AND entityId = :entityId AND dayOfWeek = :day AND periodIndex = :period")
+    suspend fun deleteBlock(type: AvailabilityEntityType, entityId: String, day: Int, period: Int)
 
     @Query("DELETE FROM availability_blocks")
     suspend fun clear()
@@ -88,6 +94,15 @@ interface TimeslotDao {
 
     @Query("DELETE FROM timeslots")
     suspend fun clear()
+}
+
+@Dao
+interface PeriodConfigDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(config: PeriodConfigEntity)
+
+    @Query("SELECT * FROM period_config WHERE id = :id LIMIT 1")
+    suspend fun get(id: String = PeriodConfigEntity.DEFAULT_ID): PeriodConfigEntity?
 }
 
 @Dao

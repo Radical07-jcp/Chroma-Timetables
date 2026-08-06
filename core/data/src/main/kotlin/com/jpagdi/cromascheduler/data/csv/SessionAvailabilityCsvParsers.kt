@@ -6,12 +6,14 @@ import com.jpagdi.cromascheduler.data.entity.SessionEntity
 import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 
 /**
- * sessions.csv: id, type, subjectId, teacherId (optional), sectionId (optional),
- *   roomTypeRequired (optional), durationPeriods (optional, default 1)
+ * sessions.csv: id, type, subjectId (optional), teacherId (optional), sectionId
+ *   (optional), roomTypeRequired (optional), durationPeriods (optional, default 1)
  *
- * teacherId/sectionId are optional per EngineSession's own doc comment (a faculty
- * meeting may have no section, etc.) — subjectId and type are the only fields every
- * session type genuinely needs.
+ * Only id and type are truly required. subjectId/teacherId/sectionId are all
+ * optional for the same reason: a MEETING or SEMINAR session commonly has a
+ * teacherId (so it still blocks that teacher's other sessions in the conflict
+ * graph — see GraphBuilder) but no subject and no section, since it isn't about
+ * teaching a subject to a section at all.
  */
 fun parseSessionsCsv(text: String, fileName: String = "sessions.csv"): ParsedFile<SessionEntity> {
     val errors = mutableListOf<CsvValidationError>()
@@ -22,7 +24,7 @@ fun parseSessionsCsv(text: String, fileName: String = "sessions.csv"): ParsedFil
         val rowNumber = index + 1
         val id = CsvValidation.requireField(row, "id", fileName, rowNumber, errors) ?: return@forEachIndexed
         val typeRaw = CsvValidation.requireField(row, "type", fileName, rowNumber, errors) ?: return@forEachIndexed
-        val subjectId = CsvValidation.requireField(row, "subjectId", fileName, rowNumber, errors) ?: return@forEachIndexed
+        val subjectId = row["subjectId"]?.trim().takeUnless { it.isNullOrEmpty() }
         if (!seenIds.add(id)) {
             errors.add(CsvValidationError(fileName, rowNumber, "Duplicate session id \"$id\""))
             return@forEachIndexed

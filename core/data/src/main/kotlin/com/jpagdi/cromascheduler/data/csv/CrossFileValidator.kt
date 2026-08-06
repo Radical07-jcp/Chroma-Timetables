@@ -50,8 +50,10 @@ object CrossFileValidator {
         }
 
         sessions.forEach { session ->
-            if (session.subjectId !in subjectIds) {
-                errors.add(CsvValidationError("sessions.csv", 0, "Session \"${session.id}\" references unknown subject \"${session.subjectId}\""))
+            session.subjectId?.let { subjectId ->
+                if (subjectId !in subjectIds) {
+                    errors.add(CsvValidationError("sessions.csv", 0, "Session \"${session.id}\" references unknown subject \"$subjectId\""))
+                }
             }
             session.teacherId?.let { teacherId ->
                 if (teacherId !in teacherIds) {

@@ -51,6 +51,37 @@ data class TimeslotEntity(
     val endTime: String,
 )
 
+/**
+ * Single-row settings table (id is always "default") capturing how a school defines
+ * its periods. Different schools genuinely differ here — the spec's non-functional
+ * requirements don't fix a period length, and one school's 45-minute period is
+ * another's 60-minute period. This is the source of truth TimeslotGenerator reads
+ * to (re)build the `timeslots` table; changing it and regenerating is how a school
+ * switches period length without anyone hand-editing rows.
+ */
+@Entity(tableName = "period_config")
+data class PeriodConfigEntity(
+    @PrimaryKey val id: String = DEFAULT_ID,
+    val periodDurationMinutes: Int,
+    val periodsPerDay: Int,
+    val dayStartMinutesSinceMidnight: Int, // e.g. 7:30 AM = 450
+    val activeDays: String, // comma-joined day-of-week ints, 1=Monday..7=Sunday — kept a plain String to avoid a new TypeConverter for one field
+    val breakAfterPeriod: Int? = null, // optional: insert one break after this period index (0-based); null = no break
+    val breakDurationMinutes: Int = 0,
+) {
+    companion object {
+        const val DEFAULT_ID = "default"
+        val DEFAULT = PeriodConfigEntity(
+            periodDurationMinutes = 60,
+            periodsPerDay = 8,
+            dayStartMinutesSinceMidnight = 7 * 60 + 30, // 7:30 AM
+            activeDays = "1,2,3,4,5", // Monday-Friday
+        )
+    }
+
+    fun activeDaysList(): List<Int> = activeDays.split(",").mapNotNull { it.trim().toIntOrNull() }
+}
+
 /** One row per generated schedule "run" — lets Validate/Repair/Optimize target a specific saved schedule. */
 @Entity(tableName = "schedule_runs")
 data class ScheduleRunEntity(

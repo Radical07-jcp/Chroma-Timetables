@@ -18,7 +18,7 @@ import kotlin.math.roundToInt
 private enum class ResultsTab(val label: String) { WEEKLY("Weekly"), DAILY("Daily"), TEACHER("Teacher"), ROOM("Room"), SECTION("Section") }
 
 @Composable
-fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String) -> Unit) {
+fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, runName: String) -> Unit) {
     val container = LocalAppContainer.current
     val viewModel: ResultsViewModel = viewModel(factory = ViewModelFactory(container))
     LaunchedEffect(runId) { viewModel.load(runId) }
@@ -28,7 +28,7 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String) -
     Scaffold(
         topBar = { CromaTopBar(viewModel.run?.name ?: "Results", onBack) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { onExport(runId) }, text = { Text("Export") }, icon = {})
+            ExtendedFloatingActionButton(onClick = { onExport(runId, viewModel.run?.name ?: "Schedule") }, text = { Text("Export") }, icon = {})
         },
     ) { padding ->
         if (viewModel.isLoading) {
