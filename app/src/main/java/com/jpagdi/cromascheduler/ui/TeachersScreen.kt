@@ -16,14 +16,12 @@ import com.jpagdi.cromascheduler.viewmodel.TeachersViewModel
 import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
 
 @Composable
-fun TeachersScreen(onSelectTeacher: (TeacherEntity) -> Unit) {
+fun TeachersScreen(onBack: () -> Unit, onSelectTeacher: (TeacherEntity) -> Unit) {
     val container = LocalAppContainer.current
     val viewModel: TeachersViewModel = viewModel(factory = ViewModelFactory(container))
     LaunchedEffect(Unit) { viewModel.load() }
 
-    Scaffold(topBar = {
-        Surface { Text("Teachers", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp)) }
-    }) { padding ->
+    Scaffold(topBar = { CromaTopBar("Teachers", onBack) }) { padding ->
         if (viewModel.teachers.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("No teachers yet — import your data from the Home screen.")

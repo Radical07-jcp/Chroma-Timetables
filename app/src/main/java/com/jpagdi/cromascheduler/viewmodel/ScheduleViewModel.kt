@@ -38,15 +38,22 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
         }
     }
 
-    fun generate(name: String, isExamMode: Boolean, algorithmName: String) {
+    /**
+     * [sessionType] is mandatory — chosen via GenerateScreen's schedule-type prompt before this is
+     * ever called — and is what makes every run single-type all the way through
+     * ScheduleRepository.generate(). GENERATE_EXAM is still recorded as the run's `mode` when the
+     * type is EXAM, purely for the existing mode-label display; the actual session filtering now
+     * lives in the repository, keyed off [sessionType] itself rather than a special-cased boolean.
+     */
+    fun generate(name: String, sessionType: SessionTypeEntity, algorithmName: String) {
         operationState = OperationUiState.Running
         viewModelScope.launch {
             runCatching {
                 repository.generate(
                     name = name,
-                    mode = if (isExamMode) ScheduleMode.GENERATE_EXAM else ScheduleMode.GENERATE,
+                    mode = if (sessionType == SessionTypeEntity.EXAM) ScheduleMode.GENERATE_EXAM else ScheduleMode.GENERATE,
+                    sessionType = sessionType,
                     algorithmName = algorithmName,
-                    sessionFilter = { session -> !isExamMode || session.type == SessionTypeEntity.EXAM },
                 )
             }.onSuccess { runId -> operationState = OperationUiState.GenerateDone(runId) }
                 .onFailure { e -> operationState = OperationUiState.Failed(e.message ?: "Generate failed") }

@@ -11,13 +11,29 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CromaScheduler">
         <activity
-            android:name=".MainActivity"
-            android:exported="true">
+            android:name=".home.HomeActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".home.TimetableDetailActivity"
+            android:exported="false"
+            android:parentActivityName=".home.HomeActivity" />
+
+        <!-- Single Activity that hosts every existing Compose screen (Import, Generate, Validate,
+             Repair, Results, Export, Teachers, Teacher Availability, Define Periods, Settings) —
+             see host/ComposeHostActivity.kt's doc comment for why this is the one bridge point
+             between the new XML screens and the untouched Compose ones. -->
+        <activity
+            android:name=".host.ComposeHostActivity"
+            android:exported="false"
+            android:parentActivityName=".home.HomeActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generic pill shape for status badges (Home list, Timetable Detail subtitle) — solid color is
+     overwritten at runtime via ImageView/TextView background tint, since the actual color depends
+     on the run's conflict count (clean/conflicts/draft), not something knowable at layout time. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/status_draft" />
+    <corners android:radius="20dp" />
+</shape>

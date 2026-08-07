@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Chroma Timetables</string>
+    <string name="header_line1">CHROMA</string>
+    <string name="header_line2">TIMETABLES</string>
+    <string name="drawer_tagline">PLAN • VALIDATE • OPTIMIZE</string>
 </resources>

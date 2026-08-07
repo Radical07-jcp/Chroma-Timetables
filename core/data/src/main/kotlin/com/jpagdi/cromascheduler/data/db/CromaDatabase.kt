@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.jpagdi.cromascheduler.data.dao.*
 import com.jpagdi.cromascheduler.data.entity.*
 
@@ -34,7 +36,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 2, // bumped: PeriodConfigEntity changed from flat fields to an encoded block list (see PeriodBlock)
+    version = 3, // bumped: ScheduleRunEntity gained sessionType (see MIGRATION_2_3 below)
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -55,6 +57,21 @@ abstract class CromaDatabase : RoomDatabase() {
 }
 
 /**
+ * v2 -> v3: adds schedule_runs.sessionType (the "which schedule type is this run"
+ * column that the Home/Timetable-detail rebuild and the type-specific
+ * Generate/Import flow depend on). Existing rows default to CLASS — a real
+ * migration, not fallbackToDestructiveMigration, per this file's own doc
+ * comment above about not throwing away real school data across a schema bump.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE schedule_runs ADD COLUMN sessionType TEXT NOT NULL DEFAULT 'CLASS'",
+        )
+    }
+}
+
+/**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
  * function instead of touching Room directly, which is also what was actually
@@ -65,4 +82,6 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     context.applicationContext,
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
-).build()
+)
+    .addMigrations(MIGRATION_2_3)
+    .build()

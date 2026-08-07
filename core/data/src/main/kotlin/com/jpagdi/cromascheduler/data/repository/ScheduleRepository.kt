@@ -8,6 +8,7 @@ import com.jpagdi.cromascheduler.data.entity.PeriodConfigEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleAssignmentEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.entity.SessionEntity
+import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import com.jpagdi.cromascheduler.data.export.ScheduleExportRow
 import com.jpagdi.cromascheduler.data.timeslot.TimeslotGenerator
 import com.jpagdi.cromascheduler.engine.SchedulingEngine
@@ -91,21 +92,30 @@ class ScheduleRepository(private val database: CromaDatabase) {
         )
     }
 
-    /** Generate New Schedule / Generate Examination Schedule — [sessionFilter] is the only difference between the two modes. */
+    /**
+     * Generate New Schedule / Generate Examination Schedule / any other type-specific run.
+     *
+     * [sessionType] is mandatory and is ANDed into the session selection alongside the caller's own
+     * [sessionFilter] — a run can never end up colored from a mix of e.g. CLASS and MEETING sessions,
+     * matching the "CSV data must not mix schedule types" requirement all the way through to
+     * scheduling, not just at import time. The resulting [ScheduleRunEntity.sessionType] is what Home
+     * and Timetable Detail use to label and filter runs.
+     */
     suspend fun generate(
         name: String,
         mode: String,
+        sessionType: SessionTypeEntity,
         algorithmName: String = ColoringAlgorithmRegistry.default.name,
         sessionFilter: (SessionEntity) -> Boolean = { true },
     ): String {
-        val input = buildSchedulingInput(sessionFilter)
+        val input = buildSchedulingInput { session -> session.type == sessionType && sessionFilter(session) }
         val algorithm = ColoringAlgorithmRegistry.algorithms[algorithmName] ?: ColoringAlgorithmRegistry.default
         val startTime = System.currentTimeMillis()
         val output = SchedulingEngine.generate(input, algorithm)
         val elapsed = System.currentTimeMillis() - startTime
 
         val runId = UUID.randomUUID().toString()
-        val run = ScheduleRunEntity(runId, name, System.currentTimeMillis(), algorithm.name, mode, elapsed)
+        val run = ScheduleRunEntity(runId, name, System.currentTimeMillis(), algorithm.name, mode, elapsed, sessionType)
         persistRun(run, output.assignments, output.roomBySession, output.violations)
         return runId
     }
@@ -163,6 +173,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             algorithmUsed = algorithm.name,
             mode = ScheduleMode.REPAIR,
             executionTimeMillis = elapsed,
+            sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
         )
         persistRun(run, result.assignments, result.roomBySession, result.remainingViolations)
         return runId
@@ -204,12 +215,28 @@ class ScheduleRepository(private val database: CromaDatabase) {
             algorithmUsed = "optimize",
             mode = ScheduleMode.OPTIMIZE,
             executionTimeMillis = elapsed,
+            sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
         )
         persistRun(run, result.assignments, result.roomBySession, violations)
         return runId
     }
 
     suspend fun getRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAll()
+
+    suspend fun getRun(runId: String): ScheduleRunEntity? = database.scheduleRunDao().getById(runId)
+
+    /** runId -> conflict count, for every run that has at least one conflict. Missing from the map means clean. */
+    suspend fun getConflictCountsByRun(): Map<String, Int> =
+        database.scheduleRunDao().getConflictCountsByRun().associate { it.scheduleRunId to it.conflictCount }
+
+    /** Deletes a run and everything scoped to it (assignments, conflict records) — never touches the shared teacher/subject/room/session data those assignments point at. */
+    suspend fun deleteRun(runId: String) {
+        database.withTransaction {
+            database.scheduleRunDao().deleteAssignmentsFor(runId)
+            database.scheduleRunDao().deleteConflictsFor(runId)
+            database.scheduleRunDao().deleteRun(runId)
+        }
+    }
 
     suspend fun getTeachers(): List<com.jpagdi.cromascheduler.data.entity.TeacherEntity> = database.teacherDao().getAll()
 

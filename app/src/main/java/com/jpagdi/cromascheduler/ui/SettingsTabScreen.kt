@@ -11,10 +11,8 @@ import com.jpagdi.cromascheduler.designsystem.CromaAccents
 import com.jpagdi.cromascheduler.designsystem.DashboardCard
 
 @Composable
-fun SettingsTabScreen(onDefinePeriods: () -> Unit) {
-    Scaffold(topBar = {
-        Surface { Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp)) }
-    }) { padding ->
+fun SettingsTabScreen(onBack: () -> Unit, onDefinePeriods: () -> Unit) {
+    Scaffold(topBar = { CromaTopBar("Settings", onBack) }) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

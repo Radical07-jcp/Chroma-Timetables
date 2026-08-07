@@ -11,6 +11,7 @@ import com.jpagdi.cromascheduler.data.csv.parseSessionsCsv
 import com.jpagdi.cromascheduler.data.csv.parseSubjectsCsv
 import com.jpagdi.cromascheduler.data.csv.parseTeachersCsv
 import com.jpagdi.cromascheduler.data.db.CromaDatabase
+import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import java.io.InputStream
 
 private val EXPECTED_FILES = setOf(
@@ -47,20 +48,48 @@ data class ImportResult(
  */
 class CsvImportService(private val database: CromaDatabase) {
 
-    suspend fun importFromZip(input: InputStream): ImportResult {
+    suspend fun importFromZip(input: InputStream, expectedSessionType: SessionTypeEntity?): ImportResult {
         val entries = ZipCsvReader.readCsvEntries(input)
-        return importFromFiles(entries)
+        return importFromFiles(entries, expectedSessionType)
     }
 
-    suspend fun importFromFiles(files: Map<String, String>): ImportResult {
+    /**
+     * [expectedSessionType] is the schedule type the user picked in the Import prompt (Class,
+     * Examination, Lab, Meeting, Seminar) BEFORE choosing files — see ImportScreen's type dialog. This
+     * is what prevents one import from silently mixing schedule types: any sessions.csv row whose own
+     * `type` column doesn't match is rejected as a row-level error and never persisted, exactly like any
+     * other invalid row. teachers/subjects/rooms/sections/availability aren't session-typed themselves
+     * (a teacher or room is shared across schedule types), so only sessions.csv is filtered here.
+     * Passing null (e.g. from a test or a future "import everything" path) restores the old
+     * accept-anything behavior.
+     */
+    suspend fun importFromFiles(files: Map<String, String>, expectedSessionType: SessionTypeEntity? = null): ImportResult {
         val allErrors = mutableListOf<CsvValidationError>()
 
         val teachers = files["teachers.csv"]?.let { parseTeachersCsv(it) }
         val subjects = files["subjects.csv"]?.let { parseSubjectsCsv(it) }
         val rooms = files["rooms.csv"]?.let { parseRoomsCsv(it) }
         val sections = files["sections.csv"]?.let { parseSectionsCsv(it) }
-        val sessions = files["sessions.csv"]?.let { parseSessionsCsv(it) }
+        val sessionsParsed = files["sessions.csv"]?.let { parseSessionsCsv(it) }
         val availability = files["availability.csv"]?.let { parseAvailabilityCsv(it) }
+
+        // Split sessions.csv's records into the ones that match the chosen schedule type and the
+        // ones that don't, rather than rejecting the whole file — one bad row shouldn't block every
+        // correct row in the same import, same philosophy as every other row-level check here.
+        val sessions = if (expectedSessionType != null && sessionsParsed != null) {
+            val (matching, mismatched) = sessionsParsed.records.partition { it.type == expectedSessionType }
+            mismatched.forEach { rejected ->
+                allErrors += CsvValidationError(
+                    "sessions.csv", 0,
+                    "Session \"${rejected.id}\" is type ${rejected.type} but this import was started as " +
+                        "$expectedSessionType — row skipped so schedule types don't get mixed. Import it " +
+                        "separately as a ${rejected.type} schedule instead.",
+                )
+            }
+            sessionsParsed.copy(records = matching)
+        } else {
+            sessionsParsed
+        }
 
         listOfNotNull(teachers, subjects, rooms, sections, sessions, availability).forEach {
             allErrors += it.errors

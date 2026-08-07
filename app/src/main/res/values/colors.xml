@@ -1,4 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFF</color>
+
+    <!-- Chroma palette — pulled straight from the app icon's graph-node colors, so the
+         in-app header/drawer/status colors visually match the launcher icon instead of
+         being a separately invented palette. -->
+    <color name="chroma_navy">#1B2430</color>
+    <color name="chroma_navy_dark">#12181F</color>
+    <color name="chroma_mint">#4FE3B0</color>
+    <color name="chroma_blue">#4C6FF2</color>
+    <color name="chroma_gold">#FFB020</color>
+    <color name="chroma_red">#F0374A</color>
+    <color name="chroma_white">#FFFFFF</color>
+    <color name="chroma_card_light">#FFFFFF</color>
+    <color name="chroma_card_dark">#232C39</color>
+    <color name="chroma_bg_light">#F4F6F9</color>
+    <color name="chroma_bg_dark">#161D27</color>
+    <color name="chroma_text_primary_light">#1B2430</color>
+    <color name="chroma_text_primary_dark">#F4F6F9</color>
+
+    <!-- Status pill colors — used on the Home timetable list and Timetable Detail subtitle. -->
+    <color name="status_clean">#2FAE68</color>
+    <color name="status_conflicts">@color/chroma_red</color>
+    <color name="status_draft">#8A93A3</color>
 </resources>

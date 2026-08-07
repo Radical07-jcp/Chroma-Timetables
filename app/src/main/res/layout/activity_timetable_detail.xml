@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-timetable detail screen. This is where the OLD Home Dashboard's Validate/Repair/
+     Export buttons (and View Timetable / Optimize) actually live now — they operate on ONE
+     specific ScheduleRunEntity, whose id/name/type/status this screen already has, so there's no
+     more "pick a run" screen in front of them the way the old RunsListScreen used to require. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/windowBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/headerRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/chroma_navy"
+            android:paddingStart="8dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
+
+            <ImageView
+                android:id="@+id/btnBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:padding="8dp"
+                android:src="@drawable/ic_back"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Back" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvDetailTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Timetable name"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/chroma_white" />
+
+                <TextView
+                    android:id="@+id/tvDetailSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Class Schedule • DSATUR"
+                    android:textSize="12sp"
+                    android:alpha="0.8"
+                    android:textColor="@color/chroma_white" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/btnExport"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_export"
+                android:tint="@color/chroma_white"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Export" />
+
+            <ImageView
+                android:id="@+id/btnDelete"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="8dp"
+                android:padding="4dp"
+                android:src="@android:drawable/ic_menu_delete"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Delete timetable" />
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:paddingBottom="96dp">
+
+                <TextView
+                    android:id="@+id/tvStatusLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="Generated in 42 ms • 0 conflicts"
+                    android:textSize="13sp"
+                    android:alpha="0.7"
+                    android:textColor="?android:attr/textColorPrimary" />
+
+                <!-- Migrated from the old Home Dashboard: Validate Schedule -->
+                <LinearLayout android:id="@+id/rowValidate" style="@style/CardRow">
+                    <ImageView style="@style/CardRowIconCircle" android:src="@drawable/ic_validate" android:contentDescription="@null" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView style="@style/CardRowTitle" android:text="Validate Schedule" />
+                        <TextView style="@style/CardRowSubtitle" android:text="Re-check every hard constraint" />
+                    </LinearLayout>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="20sp" android:alpha="0.4" android:textColor="?android:attr/textColorPrimary" />
+                </LinearLayout>
+
+                <!-- Migrated from the old Home Dashboard: Repair Conflicting Schedule -->
+                <LinearLayout android:id="@+id/rowRepair" style="@style/CardRow">
+                    <ImageView style="@style/CardRowIconCircle" android:src="@drawable/ic_repair" android:contentDescription="@null" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView style="@style/CardRowTitle" android:text="Repair Conflicts" />
+                        <TextView style="@style/CardRowSubtitle" android:text="Recolor only the sessions in conflict" />
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/tvConflictBadge"
+                        style="@style/StatusPill"
+                        android:background="@drawable/bg_pill_rounded"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone"
+                        android:text="0" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="20sp" android:alpha="0.4" android:textColor="?android:attr/textColorPrimary" />
+                </LinearLayout>
+
+                <!-- Migrated from the old Home Dashboard: Optimize Existing Schedule -->
+                <LinearLayout android:id="@+id/rowOptimize" style="@style/CardRow">
+                    <ImageView style="@style/CardRowIconCircle" android:src="@drawable/ic_optimize" android:contentDescription="@null" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView style="@style/CardRowTitle" android:text="Optimize Schedule" />
+                        <TextView style="@style/CardRowSubtitle" android:text="Improve idle time, room changes, compactness" />
+                    </LinearLayout>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="20sp" android:alpha="0.4" android:textColor="?android:attr/textColorPrimary" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- Primary action, pinned to the bottom like the reference app's own detail-screen CTA:
+         View Timetable (weekly/daily/teacher/room/section views + stats) — migrated from the old
+         Home Dashboard's "Export Schedule" neighbor button set, but this one specifically is what a
+         person taps most once a timetable already exists. -->
+    <LinearLayout
+        android:id="@+id/btnViewTimetable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="16dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp"
+        android:background="@drawable/pill_background"
+        android:elevation="6dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_timetable"
+            android:tint="@color/chroma_navy"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="View Timetable"
+            android:textColor="@color/chroma_navy"
+            android:textStyle="bold"
+            android:textSize="15sp" />
+    </LinearLayout>
+</FrameLayout>

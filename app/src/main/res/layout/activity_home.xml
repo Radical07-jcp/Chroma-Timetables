@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- New launcher screen, replacing the old bottom-tab Compose MainActivity. Plain Views + XML,
+     matching the reference app's own Home screen architecture: DrawerLayout root, a pinned header
+     row (hamburger + logo + two-line title) above a scrolling list of cards, and a FAB for the one
+     action that doesn't belong to any single existing timetable (Generate New Schedule). Each row in
+     the list represents one ScheduleRunEntity ("Timetable") and opens TimetableDetailActivity, which
+     is where the per-run actions (View/Validate/Repair/Optimize/Export) migrated to. -->
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- Header panel: hamburger opens the drawer; CHROMA / TIMETABLES two-line title, sized
+                 18sp / 9sp to match drawer_content.xml's header exactly, per the two-line pattern
+                 this was explicitly modeled on. -->
+            <LinearLayout
+                android:id="@+id/headerRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@color/chroma_navy"
+                android:paddingStart="12dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp">
+
+                <ImageView
+                    android:id="@+id/btnOpenDrawer"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_menu"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Open menu" />
+
+                <ImageView
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:src="@mipmap/ic_launcher_foreground"
+                    android:contentDescription="@string/app_name" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/header_line1"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.04"
+                        android:textColor="@color/chroma_white" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/header_line2"
+                        android:textSize="9sp"
+                        android:letterSpacing="0.12"
+                        android:textColor="@color/chroma_white" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/btnImport"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:padding="4dp"
+                    android:src="@drawable/ic_import"
+                    android:tint="@color/chroma_white"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Import Data" />
+            </LinearLayout>
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="88dp">
+
+                    <TextView
+                        android:id="@+id/tvTimetablesEmpty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No timetables yet. Import your data, then tap + to generate your first schedule."
+                        android:textSize="14sp"
+                        android:alpha="0.7"
+                        android:padding="16dp"
+                        android:visibility="gone" />
+
+                    <LinearLayout
+                        android:id="@+id/timetablesContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </ScrollView>
+        </LinearLayout>
+
+        <!-- Primary action: Generate New Schedule. The one home-dashboard button that stays global
+             (it creates a brand-new timetable, so it can't belong to any single row in the list). -->
+        <LinearLayout
+            android:id="@+id/fabGenerate"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="20dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="24dp"
+            android:background="@drawable/fab_circle_background"
+            android:elevation="6dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_calendar_add"
+                android:tint="@color/chroma_navy"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="Generate Schedule"
+                android:textColor="@color/chroma_navy"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <include
+        layout="@layout/drawer_content"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end" />
+
+</androidx.drawerlayout.widget.DrawerLayout>

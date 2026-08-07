@@ -124,4 +124,25 @@ interface ScheduleRunDao {
 
     @Query("SELECT * FROM conflict_records WHERE scheduleRunId = :runId")
     suspend fun getConflictsFor(runId: String): List<ConflictRecordEntity>
+
+    @Query("SELECT * FROM schedule_runs WHERE id = :runId LIMIT 1")
+    suspend fun getById(runId: String): ScheduleRunEntity?
+
+    @Query("SELECT * FROM schedule_runs WHERE sessionType = :type ORDER BY createdAtEpochMillis DESC")
+    suspend fun getAllByType(type: SessionTypeEntity): List<ScheduleRunEntity>
+
+    @Query("DELETE FROM schedule_runs WHERE id = :runId")
+    suspend fun deleteRun(runId: String)
+
+    @Query("DELETE FROM schedule_assignments WHERE scheduleRunId = :runId")
+    suspend fun deleteAssignmentsFor(runId: String)
+
+    @Query("DELETE FROM conflict_records WHERE scheduleRunId = :runId")
+    suspend fun deleteConflictsFor(runId: String)
+
+    /** One row per run that has at least one conflict — runs with zero conflicts simply don't appear, which the caller reads as "clean". Powers the Home list's status pill without an N+1 query per run. */
+    @Query("SELECT scheduleRunId, COUNT(*) as conflictCount FROM conflict_records GROUP BY scheduleRunId")
+    suspend fun getConflictCountsByRun(): List<RunConflictCount>
 }
+
+data class RunConflictCount(val scheduleRunId: String, val conflictCount: Int)

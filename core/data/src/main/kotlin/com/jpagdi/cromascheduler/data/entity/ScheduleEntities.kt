@@ -153,7 +153,15 @@ data class PeriodConfigEntity(
 }
 
 
-/** One row per generated schedule "run" — lets Validate/Repair/Optimize target a specific saved schedule. */
+/**
+ * One row per generated schedule "run" — lets Validate/Repair/Optimize target a specific saved schedule.
+ *
+ * [sessionType] is the schedule TYPE this run was generated for (Class, Examination, Lab, Meeting,
+ * Seminar) — added so that Home/Timetable Detail can label and filter runs, and so Generate can never
+ * silently mix session types into one run. Every session actually colored into this run has this same
+ * [SessionTypeEntity], enforced by ScheduleRepository.generate() ANDing the caller's sessionFilter with
+ * `session.type == sessionType`, not just documented by convention.
+ */
 @Entity(tableName = "schedule_runs")
 data class ScheduleRunEntity(
     @PrimaryKey val id: String,
@@ -162,6 +170,7 @@ data class ScheduleRunEntity(
     val algorithmUsed: String,
     val mode: String, // GENERATE / GENERATE_EXAM / REPAIR / OPTIMIZE
     val executionTimeMillis: Long = 0,
+    val sessionType: SessionTypeEntity = SessionTypeEntity.CLASS,
 )
 
 @Entity(
