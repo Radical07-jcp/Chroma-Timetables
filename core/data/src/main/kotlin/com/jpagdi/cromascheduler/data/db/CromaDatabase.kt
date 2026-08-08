@@ -36,7 +36,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 3, // bumped: ScheduleRunEntity gained sessionType (see MIGRATION_2_3 below)
+    version = 5, // bumped: SessionTypeEntity dropped MEETING/SEMINAR (see MIGRATION_4_5 below)
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -72,6 +72,36 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 }
 
 /**
+ * v3 -> v4: adds period_config.isUserConfigured — the flag GenerateScreen uses to require a real
+ * Define Periods save before Generate is allowed. Existing rows default to false, which correctly
+ * treats any period_config saved before this column existed as "still the auto-seeded default,
+ * never actually confirmed by a person" — the safer assumption for a gate like this.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE period_config ADD COLUMN isUserConfigured INTEGER NOT NULL DEFAULT 0",
+        )
+    }
+}
+
+/**
+ * v4 -> v5: SessionTypeEntity dropped MEETING and SEMINAR — Faculty Meeting and Seminar schedules
+ * are no longer distinct types the app supports. Room stores enums as their name() string, so this
+ * isn't a column-type change, but any existing row with type='MEETING' or 'SEMINAR' would fail to
+ * deserialize once the Kotlin enum no longer has that constant — deleting those rows (and anything
+ * that points at them) is the only safe option, not silently coercing them to some other type.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM schedule_assignments WHERE sessionId IN (SELECT id FROM sessions WHERE type IN ('MEETING','SEMINAR'))")
+        db.execSQL("DELETE FROM conflict_records WHERE sessionAId IN (SELECT id FROM sessions WHERE type IN ('MEETING','SEMINAR')) OR sessionBId IN (SELECT id FROM sessions WHERE type IN ('MEETING','SEMINAR'))")
+        db.execSQL("DELETE FROM sessions WHERE type IN ('MEETING','SEMINAR')")
+        db.execSQL("DELETE FROM schedule_runs WHERE sessionType IN ('MEETING','SEMINAR')")
+    }
+}
+
+/**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
  * function instead of touching Room directly, which is also what was actually
@@ -83,5 +113,5 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
 )
-    .addMigrations(MIGRATION_2_3)
+    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     .build()

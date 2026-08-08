@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
  * the data layer must never import from :core:engine's model package. Mapping between
  * the two happens once, in the repository layer that hands sessions to the engine.
  */
-enum class SessionTypeEntity { CLASS, EXAM, LAB, MEETING, SEMINAR }
+enum class SessionTypeEntity { CLASS, EXAM, LAB }
 
 @Entity(tableName = "sessions")
 data class SessionEntity(
@@ -60,9 +60,13 @@ data class TimeslotEntity(
  *
  * A gap between one block's computed end and the next block's start time (e.g.
  * AM ends 11:45, PM starts 12:00) becomes a natural lunch break with no special
- * handling needed; [breakAfterPeriod]/[breakDurationMinutes] are for a SHORTER
- * break *within* a single block (a mid-morning recess), which is a different
- * thing and needs its own field.
+ * handling needed when a school splits AM/PM into two separate blocks.
+ * [breakAfterPeriod]/[breakDurationMinutes] and [lunchAfterPeriod]/[lunchDurationMinutes]
+ * cover the other case — a single continuous block that still needs a short recess
+ * AND a lunch period inside it, e.g. one block 7:30-3:30 with a 15-min break after
+ * period 2 and a 45-min lunch after period 4. They're independent fields (not a list
+ * of breaks) because two is the realistic ceiling for one block; a school needing
+ * more than that is almost always better modeled as separate blocks instead.
  *
  * Stored as a delimited string (see encode/decode below) rather than a separate
  * Room table — this is small, read-as-a-whole settings data that's never queried
@@ -74,8 +78,10 @@ data class PeriodBlock(
     val startMinutesSinceMidnight: Int,
     val periodDurationMinutes: Int,
     val periodCount: Int,
-    val breakAfterPeriod: Int? = null, // 0-based index WITHIN this block; null = no internal break
+    val breakAfterPeriod: Int? = null, // 0-based index WITHIN this block; null = no short break
     val breakDurationMinutes: Int = 0,
+    val lunchAfterPeriod: Int? = null, // 0-based index WITHIN this block; null = no lunch break
+    val lunchDurationMinutes: Int = 0,
 ) {
     /** When this block's last period ends — purely computed, never stored, so the UI can show it as live feedback while editing. */
     fun computedEndMinutes(): Int {
@@ -83,6 +89,7 @@ data class PeriodBlock(
         for (p in 0 until periodCount) {
             cursor += periodDurationMinutes
             if (breakAfterPeriod == p) cursor += breakDurationMinutes
+            if (lunchAfterPeriod == p) cursor += lunchDurationMinutes
         }
         return cursor
     }
@@ -90,13 +97,18 @@ data class PeriodBlock(
     companion object {
         private fun encode(b: PeriodBlock): String {
             val safeLabel = b.label.replace("|", "").replace(";", "")
-            return listOf(safeLabel, b.startMinutesSinceMidnight, b.periodDurationMinutes, b.periodCount, b.breakAfterPeriod ?: -1, b.breakDurationMinutes)
-                .joinToString("|")
+            return listOf(
+                safeLabel, b.startMinutesSinceMidnight, b.periodDurationMinutes, b.periodCount,
+                b.breakAfterPeriod ?: -1, b.breakDurationMinutes,
+                b.lunchAfterPeriod ?: -1, b.lunchDurationMinutes,
+            ).joinToString("|")
         }
 
         private fun decode(text: String): PeriodBlock? {
             val parts = text.split("|")
-            if (parts.size != 6) return null
+            // 6 parts = pre-lunch-break format still saved on an older device; read it as
+            // "no lunch break configured yet" rather than failing to load the whole block.
+            if (parts.size != 6 && parts.size != 8) return null
             return PeriodBlock(
                 label = parts[0],
                 startMinutesSinceMidnight = parts[1].toIntOrNull() ?: return null,
@@ -104,6 +116,8 @@ data class PeriodBlock(
                 periodCount = parts[3].toIntOrNull() ?: return null,
                 breakAfterPeriod = parts[4].toIntOrNull()?.takeIf { it >= 0 },
                 breakDurationMinutes = parts[5].toIntOrNull() ?: 0,
+                lunchAfterPeriod = parts.getOrNull(6)?.toIntOrNull()?.takeIf { it >= 0 },
+                lunchDurationMinutes = parts.getOrNull(7)?.toIntOrNull() ?: 0,
             )
         }
 
@@ -128,6 +142,11 @@ data class PeriodConfigEntity(
     @PrimaryKey val id: String = DEFAULT_ID,
     val activeDays: String, // comma-joined day-of-week ints, 1=Monday..7=Sunday
     val blocksEncoded: String, // see PeriodBlock.encodeList/decodeList
+    // false for the auto-seeded PeriodConfigEntity.DEFAULT below, true the moment a person actually
+    // saves something via Settings -> Define Periods — this is what GenerateScreen gates on, since a
+    // generic 60-min/8-period default silently applying to a real school's bell schedule is worse
+    // than blocking Generate with an explicit "set your periods first" message.
+    val isUserConfigured: Boolean = false,
 ) {
     fun blocks(): List<PeriodBlock> = PeriodBlock.decodeList(blocksEncoded)
 

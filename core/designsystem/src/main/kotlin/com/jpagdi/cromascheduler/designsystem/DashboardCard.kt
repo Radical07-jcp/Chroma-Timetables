@@ -59,3 +59,16 @@ fun DashboardCard(
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }
 }
+
+/** The colored "N conflicts" / "Clean" / "Not set up" badge used on Home's timetable list and inside each Timetable workspace — one composable so the three states can never render with mismatched colors in different screens. */
+@Composable
+fun StatusPill(text: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(color, RoundedCornerShape(20.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White)
+    }
+}

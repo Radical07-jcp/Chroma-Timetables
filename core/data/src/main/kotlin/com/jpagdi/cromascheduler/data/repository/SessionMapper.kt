@@ -18,8 +18,6 @@ fun SessionEntity.toEngineSession(): EngineSession = EngineSession(
         SessionTypeEntity.CLASS -> SessionType.CLASS
         SessionTypeEntity.EXAM -> SessionType.EXAM
         SessionTypeEntity.LAB -> SessionType.LAB
-        SessionTypeEntity.MEETING -> SessionType.MEETING
-        SessionTypeEntity.SEMINAR -> SessionType.SEMINAR
     },
     subjectId = subjectId,
     teacherId = teacherId,

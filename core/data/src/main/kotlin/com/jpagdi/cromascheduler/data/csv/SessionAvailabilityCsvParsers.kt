@@ -10,8 +10,8 @@ import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
  *   (optional), roomTypeRequired (optional), durationPeriods (optional, default 1)
  *
  * Only id and type are truly required. subjectId/teacherId/sectionId are all
- * optional for the same reason: a MEETING or SEMINAR session commonly has a
- * teacherId (so it still blocks that teacher's other sessions in the conflict
+ * optional for the same reason: a LAB makeup or self-study EXAM session commonly
+ * has a teacherId (so it still blocks that teacher's other sessions in the conflict
  * graph — see GraphBuilder) but no subject and no section, since it isn't about
  * teaching a subject to a section at all.
  */
@@ -34,7 +34,7 @@ fun parseSessionsCsv(text: String, fileName: String = "sessions.csv"): ParsedFil
             errors.add(
                 CsvValidationError(
                     fileName, rowNumber,
-                    "Column \"type\" must be one of CLASS, EXAM, LAB, MEETING, SEMINAR — got \"$typeRaw\"",
+                    "Column \"type\" must be one of CLASS, EXAM, LAB — got \"$typeRaw\"",
                 ),
             )
             return@forEachIndexed

@@ -48,9 +48,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
-
-    // XML/View-based screens (Home, Timetable Detail, nav drawer) alongside the existing Compose
-    // screens hosted by ComposeHostActivity — see MIXED_UI.md for why the app is intentionally
-    // mixed rather than converting everything to one or the other.
-    implementation("androidx.drawerlayout:drawerlayout:1.2.0")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 }

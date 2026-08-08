@@ -47,8 +47,8 @@ class CsvParserTest {
     }
 
     @Test
-    fun `parseSessionsCsv accepts a MEETING with no subjectId or sectionId`() {
-        val text = "id,type,teacherId\nMTG1,MEETING,T1\n"
+    fun `parseSessionsCsv accepts a LAB session with no subjectId or sectionId`() {
+        val text = "id,type,teacherId\nLAB1,LAB,T1\n"
         val result = parseSessionsCsv(text)
         assertTrue(result.errors.isEmpty())
         val record = result.records.single()
@@ -58,7 +58,7 @@ class CsvParserTest {
 
     @Test
     fun `crossFileValidator does not flag a session with no subjectId as an unknown-subject reference`() {
-        val sessions = parseSessionsCsv("id,type,teacherId\nMTG1,MEETING,T1\n").records
+        val sessions = parseSessionsCsv("id,type,teacherId\nLAB1,LAB,T1\n").records
         val errors = CrossFileValidator.validate(
             teachers = emptyList(), subjects = emptyList(), rooms = emptyList(),
             sections = emptyList(), sessions = sessions, availability = emptyList(),

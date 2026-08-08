@@ -40,6 +40,9 @@ object TimeslotGenerator {
                     if (block.breakAfterPeriod == p && block.breakDurationMinutes > 0) {
                         cursor += block.breakDurationMinutes
                     }
+                    if (block.lunchAfterPeriod == p && block.lunchDurationMinutes > 0) {
+                        cursor += block.lunchDurationMinutes
+                    }
                     periodIndex++
                 }
             }

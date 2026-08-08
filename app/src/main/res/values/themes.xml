@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Real theming for the Compose screens lives in Compose — designsystem/Theme.kt.
-         This XML theme is what the new Home / Timetable Detail Views screens actually use
-         (see values/colors.xml for the shared chroma_* palette both sides draw from), and is
-         also what's active for a brief moment before any Compose window takes over. -->
+<resources>
+    <!-- The app is 100% Jetpack Compose now — all real theming (light/dark/black, colors,
+         typography, shapes) lives in designsystem/Theme.kt. This XML theme exists only
+         because the manifest requires one before the Compose window is up. -->
     <style name="Theme.CromaScheduler" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/chroma_bg_light</item>
-        <item name="android:statusBarColor">@color/chroma_navy</item>
-        <item name="android:navigationBarColor">@color/chroma_white</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
     </style>
 </resources>

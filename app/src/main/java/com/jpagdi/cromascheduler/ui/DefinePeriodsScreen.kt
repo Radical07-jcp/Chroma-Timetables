@@ -45,7 +45,7 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "Add one block per session your school runs — a single all-day block, or separate AM/PM blocks with a gap between them for lunch. Each block has its own start time, period length, and period count.",
+                "Add one block per continuous run of periods your school has — a single all-day block with a lunch break inside it, or separate AM/PM blocks with a gap between them. Each block has its own start time, period length, and period count.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
@@ -106,11 +106,28 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
 @Composable
 private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (PeriodBlock) -> Unit, onRemove: () -> Unit) {
     var labelText by remember(block.label) { mutableStateOf(block.label) }
-    var startHour by remember(block.startMinutesSinceMidnight) { mutableStateOf(block.startMinutesSinceMidnight / 60) }
-    var startMinute by remember(block.startMinutesSinceMidnight) { mutableStateOf(block.startMinutesSinceMidnight % 60) }
+
+    // Raw TEXT state, separate from the parsed Int — this is what actually makes the hour/minute
+    // fields editable. Binding a TextField's `value` straight to `startHour.toString()` where
+    // `startHour` only updates on a successful parse means the field silently snaps back to its old
+    // digits the instant you backspace to clear it (toIntOrNull("") is null, so nothing updates,
+    // so the displayed text never actually changes) — from the outside that reads as "can't edit
+    // this field" even though the onChange wiring underneath is fine. Every numeric field below now
+    // keeps its own text buffer and only pushes a value up to the block once it parses.
+    var startHourText by remember(block.startMinutesSinceMidnight) { mutableStateOf((block.startMinutesSinceMidnight / 60).toString()) }
+    var startMinuteText by remember(block.startMinutesSinceMidnight) { mutableStateOf((block.startMinutesSinceMidnight % 60).toString()) }
     var durationText by remember(block.periodDurationMinutes) { mutableStateOf(block.periodDurationMinutes.toString()) }
     var countText by remember(block.periodCount) { mutableStateOf(block.periodCount.toString()) }
+
     var enableBreak by remember(block.breakAfterPeriod) { mutableStateOf(block.breakAfterPeriod != null) }
+    var breakAfterText by remember(block.breakAfterPeriod) { mutableStateOf(((block.breakAfterPeriod ?: 0) + 1).toString()) }
+    var breakMinutesText by remember(block.breakDurationMinutes) { mutableStateOf(block.breakDurationMinutes.toString()) }
+
+    var enableLunch by remember(block.lunchAfterPeriod) { mutableStateOf(block.lunchAfterPeriod != null) }
+    var lunchAfterText by remember(block.lunchAfterPeriod) { mutableStateOf(((block.lunchAfterPeriod ?: (block.periodCount / 2)) + 1).toString()) }
+    var lunchMinutesText by remember(block.lunchDurationMinutes) { mutableStateOf(block.lunchDurationMinutes.takeIf { it > 0 }?.toString() ?: "45") }
+
+    fun currentStartMinutes() = (startHourText.toIntOrNull() ?: 0) * 60 + (startMinuteText.toIntOrNull() ?: 0)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,18 +143,27 @@ private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (Perio
                 }
             }
 
+            Text("Start time", style = MaterialTheme.typography.labelMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = startHour.toString(),
-                    onValueChange = { text -> text.toIntOrNull()?.let { h -> if (h in 0..23) { startHour = h; onChange(block.copy(startMinutesSinceMidnight = h * 60 + startMinute)) } } },
-                    label = { Text("Start hour") },
+                    value = startHourText,
+                    onValueChange = { text ->
+                        startHourText = text
+                        val h = text.toIntOrNull()
+                        if (h != null && h in 0..23) onChange(block.copy(startMinutesSinceMidnight = currentStartMinutes()))
+                    },
+                    label = { Text("Hour (0-23)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
-                    value = startMinute.toString(),
-                    onValueChange = { text -> text.toIntOrNull()?.let { m -> if (m in 0..59) { startMinute = m; onChange(block.copy(startMinutesSinceMidnight = startHour * 60 + m)) } } },
-                    label = { Text("Start min") },
+                    value = startMinuteText,
+                    onValueChange = { text ->
+                        startMinuteText = text
+                        val m = text.toIntOrNull()
+                        if (m != null && m in 0..59) onChange(block.copy(startMinutesSinceMidnight = currentStartMinutes()))
+                    },
+                    label = { Text("Minute (0-59)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
@@ -170,27 +196,73 @@ private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (Perio
                 )
             }
 
+            HorizontalDivider()
+
+            // Short break — a mid-block recess, distinct from lunch below.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = enableBreak, onCheckedChange = { checked ->
                     enableBreak = checked
                     onChange(if (checked) block.copy(breakAfterPeriod = 0, breakDurationMinutes = 15) else block.copy(breakAfterPeriod = null, breakDurationMinutes = 0))
                 })
                 Spacer(Modifier.width(8.dp))
-                Text("Break within this block")
+                Text("Short break")
             }
             if (enableBreak) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("After period")
                     OutlinedTextField(
-                        value = ((block.breakAfterPeriod ?: 0) + 1).toString(),
-                        onValueChange = { text -> text.toIntOrNull()?.let { p -> if (p in 1..block.periodCount) onChange(block.copy(breakAfterPeriod = p - 1)) } },
+                        value = breakAfterText,
+                        onValueChange = { text ->
+                            breakAfterText = text
+                            text.toIntOrNull()?.let { p -> if (p in 1..block.periodCount) onChange(block.copy(breakAfterPeriod = p - 1)) }
+                        },
                         modifier = Modifier.width(80.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                     Text("for")
                     OutlinedTextField(
-                        value = block.breakDurationMinutes.toString(),
-                        onValueChange = { text -> text.toIntOrNull()?.let { m -> if (m >= 0) onChange(block.copy(breakDurationMinutes = m)) } },
+                        value = breakMinutesText,
+                        onValueChange = { text ->
+                            breakMinutesText = text
+                            text.toIntOrNull()?.let { m -> if (m >= 0) onChange(block.copy(breakDurationMinutes = m)) }
+                        },
+                        modifier = Modifier.width(80.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Text("min")
+                }
+            }
+
+            // Lunch break — its own toggle and its own position, since a school with one continuous
+            // block typically wants both a short mid-morning recess AND a longer lunch later on.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = enableLunch, onCheckedChange = { checked ->
+                    enableLunch = checked
+                    val defaultAfter = (block.periodCount / 2).coerceAtLeast(1) - 1
+                    onChange(if (checked) block.copy(lunchAfterPeriod = defaultAfter, lunchDurationMinutes = 45) else block.copy(lunchAfterPeriod = null, lunchDurationMinutes = 0))
+                })
+                Spacer(Modifier.width(8.dp))
+                Text("Lunch break")
+            }
+            if (enableLunch) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("After period")
+                    OutlinedTextField(
+                        value = lunchAfterText,
+                        onValueChange = { text ->
+                            lunchAfterText = text
+                            text.toIntOrNull()?.let { p -> if (p in 1..block.periodCount) onChange(block.copy(lunchAfterPeriod = p - 1)) }
+                        },
+                        modifier = Modifier.width(80.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Text("for")
+                    OutlinedTextField(
+                        value = lunchMinutesText,
+                        onValueChange = { text ->
+                            lunchMinutesText = text
+                            text.toIntOrNull()?.let { m -> if (m >= 0) onChange(block.copy(lunchDurationMinutes = m)) }
+                        },
                         modifier = Modifier.width(80.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )

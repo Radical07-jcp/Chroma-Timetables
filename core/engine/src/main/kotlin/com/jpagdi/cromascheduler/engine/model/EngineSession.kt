@@ -1,13 +1,13 @@
 package com.jpagdi.cromascheduler.engine.model
 
 /**
- * The unit the scheduling engine works with. A CLASS, EXAM, LAB, MEETING, or SEMINAR
- * are all just an EngineSession to the graph/coloring code below — the engine never
- * branches on [type]. Type exists purely for UI grouping and constraint messages
- * (e.g. "prefer morning" only applies to some types in a soft-constraint weighting,
- * decided in the constraint layer, not here).
+ * The unit the scheduling engine works with. CLASS, EXAM, and LAB are all just an
+ * EngineSession to the graph/coloring code below — the engine never branches on
+ * [type]. Type exists purely for UI grouping and constraint messages (e.g. "prefer
+ * morning" only applies to some types in a soft-constraint weighting, decided in
+ * the constraint layer, not here).
  */
-enum class SessionType { CLASS, EXAM, LAB, MEETING, SEMINAR }
+enum class SessionType { CLASS, EXAM, LAB }
 
 /**
  * [id] must be stable and unique across a whole scheduling run — it's used as the
@@ -16,7 +16,7 @@ enum class SessionType { CLASS, EXAM, LAB, MEETING, SEMINAR }
  * run of colors for anything with durationPeriods > 1 (see ColoringAlgorithm docs).
  *
  * [teacherId] and [sectionId] are nullable because not every session type needs both
- * — a faculty meeting may have no section, a self-study exam block may have no teacher.
+ * — a self-study exam block may have no teacher, a lab makeup session may have no section.
  * Conflict-graph construction (Phase 3) only adds an edge on a shared, non-null id.
  */
 data class EngineSession(

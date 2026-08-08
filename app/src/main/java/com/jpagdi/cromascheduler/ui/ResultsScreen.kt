@@ -15,7 +15,9 @@ import com.jpagdi.cromascheduler.viewmodel.ResultsViewModel
 import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
 import kotlin.math.roundToInt
 
-private enum class ResultsTab(val label: String) { WEEKLY("Weekly"), DAILY("Daily"), TEACHER("Teacher"), ROOM("Room"), SECTION("Section") }
+private enum class ResultsTab(val label: String) {
+    WEEKLY("Weekly"), DAILY("Daily"), TEACHER("Teacher"), CLASS("Class"), SUBJECT("Subject"), PERIOD("Period"), ROOM("Room")
+}
 
 @Composable
 fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, runName: String) -> Unit) {
@@ -41,7 +43,7 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, r
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             StatisticsCard(viewModel)
 
-            TabRow(selectedTabIndex = tab.ordinal) {
+            ScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp) {
                 ResultsTab.entries.forEach { t ->
                     Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
                 }
@@ -51,8 +53,10 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, r
                 ResultsTab.WEEKLY -> GroupedTimetable(viewModel.rows) { it.dayLabel }
                 ResultsTab.DAILY -> DailyTimetable(viewModel.rows)
                 ResultsTab.TEACHER -> GroupedTimetable(viewModel.rows) { it.teacherName }
+                ResultsTab.CLASS -> GroupedTimetable(viewModel.rows) { it.sectionName }
+                ResultsTab.SUBJECT -> GroupedTimetable(viewModel.rows) { it.subjectName }
+                ResultsTab.PERIOD -> GroupedTimetable(viewModel.rows) { "${it.startTime}–${it.endTime}" }
                 ResultsTab.ROOM -> GroupedTimetable(viewModel.rows) { it.roomName }
-                ResultsTab.SECTION -> GroupedTimetable(viewModel.rows) { it.sectionName }
             }
         }
     }

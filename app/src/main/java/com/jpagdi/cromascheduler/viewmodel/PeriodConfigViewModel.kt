@@ -31,7 +31,12 @@ class PeriodConfigViewModel(private val repository: ScheduleRepository) : ViewMo
     fun save() {
         isSaving = true
         viewModelScope.launch {
-            repository.savePeriodConfigAndRegenerate(config)
+            // Saving via this screen is exactly what "user configured" means — flip it here rather
+            // than trusting every caller of savePeriodConfigAndRegenerate to remember, since the
+            // startup auto-seed (ensureDefaultPeriodConfigExists) also calls that same repository
+            // method and must NOT count as user configuration.
+            repository.savePeriodConfigAndRegenerate(config.copy(isUserConfigured = true))
+            config = config.copy(isUserConfigured = true)
             isSaving = false
             savedConfirmation = true
         }

@@ -43,16 +43,7 @@ fun ValidateScreen(runId: String, onBack: () -> Unit, onRepair: (runId: String) 
                     } else {
                         Text("${state.violations.size} conflict(s) found", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
                         Button(onClick = { onRepair(runId) }) { Text("Repair now") }
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(state.violations) { violation ->
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(violation.type.name.replace('_', ' '), style = MaterialTheme.typography.titleSmall)
-                                        Text(violation.message, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            }
-                        }
+                        ViolationList(state.violations)
                     }
                 }
                 else -> Unit

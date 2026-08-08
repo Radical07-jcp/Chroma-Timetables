@@ -1,17 +1,22 @@
 package com.jpagdi.cromascheduler.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jpagdi.cromascheduler.data.csv.parseExistingAssignmentsCsv
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import com.jpagdi.cromascheduler.data.repository.ScheduleMode
 import com.jpagdi.cromascheduler.data.repository.ScheduleRepository
 import com.jpagdi.cromascheduler.engine.coloring.ColoringAlgorithmRegistry
 import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed class OperationUiState {
     data object Idle : OperationUiState()
@@ -20,6 +25,8 @@ sealed class OperationUiState {
     data class ValidateDone(val violations: List<ConstraintViolation>) : OperationUiState()
     data class RepairDone(val newRunId: String) : OperationUiState()
     data class OptimizeDone(val newRunId: String) : OperationUiState()
+    /** The standalone Repair feature's upload step lands here — already validated (see ScheduleRepository.importExistingSchedule), so the Repair-upload screen can go straight to showing conflicts without a second round trip. */
+    data class ImportedForRepair(val runId: String, val violations: List<ConstraintViolation>) : OperationUiState()
     data class Failed(val message: String) : OperationUiState()
 }
 
@@ -89,5 +96,24 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
 
     fun resetOperationState() {
         operationState = OperationUiState.Idle
+    }
+
+    /** Reads and parses an assignments.csv from [uri], persists it as a new IMPORTED run under [sessionType], and validates it immediately — the standalone Repair feature's only entry point. */
+    fun importExistingSchedule(context: Context, uri: Uri, name: String, sessionType: SessionTypeEntity) {
+        operationState = OperationUiState.Running
+        viewModelScope.launch {
+            runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                        ?: error("Could not open the selected file")
+                }
+                val parsed = parseExistingAssignmentsCsv(text)
+                if (parsed.errors.isNotEmpty()) {
+                    error(parsed.errors.joinToString("\n") { "${it.fileName} row ${it.rowNumber}: ${it.message}" })
+                }
+                repository.importExistingSchedule(name, sessionType, parsed.records)
+            }.onSuccess { (runId, violations) -> operationState = OperationUiState.ImportedForRepair(runId, violations) }
+                .onFailure { e -> operationState = OperationUiState.Failed(e.message ?: "Import failed") }
+        }
     }
 }

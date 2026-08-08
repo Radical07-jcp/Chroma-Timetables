@@ -6,6 +6,7 @@ import com.jpagdi.cromascheduler.data.db.buildCromaDatabase
 import com.jpagdi.cromascheduler.data.export.CsvScheduleExporter
 import com.jpagdi.cromascheduler.data.export.PdfScheduleExporter
 import com.jpagdi.cromascheduler.data.export.XlsxScheduleExporter
+import com.jpagdi.cromascheduler.data.prefs.ThemePreferenceStore
 import com.jpagdi.cromascheduler.data.repository.CsvImportService
 import com.jpagdi.cromascheduler.data.repository.ScheduleRepository
 
@@ -24,4 +25,5 @@ class AppContainer(context: Context) {
     val csvExporter = CsvScheduleExporter()
     val xlsxExporter = XlsxScheduleExporter()
     val pdfExporter = PdfScheduleExporter()
+    val themePreferenceStore = ThemePreferenceStore(context.applicationContext)
 }
