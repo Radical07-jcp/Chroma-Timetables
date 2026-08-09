@@ -1,5 +1,6 @@
 package com.jpagdi.cromascheduler.designsystem
 
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -13,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
  * below needs via FontVariation's "wght" axis — no separate Regular/Medium/SemiBold/Bold files to
  * bundle and keep in sync.
  */
+@OptIn(ExperimentalTextApi::class)
 private fun montserrat(weight: FontWeight) = Font(
     resId = R.font.montserrat,
     weight = weight,
@@ -20,6 +22,7 @@ private fun montserrat(weight: FontWeight) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
 )
 
+@OptIn(ExperimentalTextApi::class)
 val MontserratFamily = FontFamily(
     montserrat(FontWeight.Normal),
     montserrat(FontWeight.Medium),

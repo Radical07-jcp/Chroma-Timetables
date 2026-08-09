@@ -13,32 +13,38 @@ import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
  * carrier for what the person picked on the way to GenerateScreen, which is the one place any of
  * this actually gets persisted (as part of the new run, not as a separately-saved setting). That's
  * the whole reason two timetables can have different periods now — nothing here is shared state.
+ *
+ * Read-only computed properties (sessionType/periodBlocks/activeDays) backed by private
+ * mutableStateOf fields, rather than `var ... private set`, because a private-visibility setter
+ * still generates a JVM setter method — which collided with the explicit setSessionType() /
+ * setPeriodBlocks() / setActiveDays() functions below at the bytecode level ("platform declaration
+ * clash"). A get()-only val generates no setter at all, so there's nothing left to clash with.
  */
 class CreateTimetableViewModel : ViewModel() {
-    var sessionType by mutableStateOf<SessionTypeEntity?>(null)
-        private set
+    private var _sessionType by mutableStateOf<SessionTypeEntity?>(null)
+    val sessionType: SessionTypeEntity? get() = _sessionType
 
-    var periodBlocks by mutableStateOf(listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8)))
-        private set
+    private var _periodBlocks by mutableStateOf(listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8)))
+    val periodBlocks: List<PeriodBlock> get() = _periodBlocks
 
-    var activeDays by mutableStateOf(listOf(1, 2, 3, 4, 5))
-        private set
+    private var _activeDays by mutableStateOf(listOf(1, 2, 3, 4, 5))
+    val activeDays: List<Int> get() = _activeDays
 
     fun setSessionType(type: SessionTypeEntity) {
-        sessionType = type
+        _sessionType = type
     }
 
     fun setPeriodBlocks(blocks: List<PeriodBlock>) {
-        periodBlocks = blocks
+        _periodBlocks = blocks
     }
 
     fun setActiveDays(days: List<Int>) {
-        activeDays = days
+        _activeDays = days
     }
 
     fun reset() {
-        sessionType = null
-        periodBlocks = listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8))
-        activeDays = listOf(1, 2, 3, 4, 5)
+        _sessionType = null
+        _periodBlocks = listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8))
+        _activeDays = listOf(1, 2, 3, 4, 5)
     }
 }
