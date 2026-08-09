@@ -85,27 +85,6 @@ interface AvailabilityDao {
 }
 
 @Dao
-interface TimeslotDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(timeslots: List<TimeslotEntity>)
-
-    @Query("SELECT * FROM timeslots ORDER BY dayOfWeek, periodIndex")
-    suspend fun getAll(): List<TimeslotEntity>
-
-    @Query("DELETE FROM timeslots")
-    suspend fun clear()
-}
-
-@Dao
-interface PeriodConfigDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(config: PeriodConfigEntity)
-
-    @Query("SELECT * FROM period_config WHERE id = :id LIMIT 1")
-    suspend fun get(id: String = PeriodConfigEntity.DEFAULT_ID): PeriodConfigEntity?
-}
-
-@Dao
 interface ScheduleRunDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(run: ScheduleRunEntity)

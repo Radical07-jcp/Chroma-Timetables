@@ -1,7 +1,6 @@
 package com.jpagdi.cromascheduler.data.timeslot
 
 import com.jpagdi.cromascheduler.data.entity.PeriodBlock
-import com.jpagdi.cromascheduler.data.entity.PeriodConfigEntity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -9,11 +8,8 @@ class TimeslotGeneratorTest {
 
     @Test
     fun `single block generates the right number of slots for each active day`() {
-        val config = PeriodConfigEntity(
-            activeDays = "1,2,3,4,5",
-            blocksEncoded = PeriodBlock.encodeList(listOf(PeriodBlock("Day", 7 * 60, 45, 6))),
-        )
-        val slots = TimeslotGenerator.generate(config)
+        val blocks = listOf(PeriodBlock("Day", 7 * 60, 45, 6))
+        val slots = TimeslotGenerator.generate(blocks, listOf(1, 2, 3, 4, 5))
         assertEquals(6 * 5, slots.size)
         assertEquals(6, slots.count { it.dayOfWeek == 1 })
     }
@@ -24,9 +20,7 @@ class TimeslotGeneratorTest {
         // (five 66-minute periods, arbitrary), PM 12:00-5:30 with a 15-min break.
         val am = PeriodBlock(label = "AM", startMinutesSinceMidnight = 6 * 60 + 30, periodDurationMinutes = 66, periodCount = 5)
         val pm = PeriodBlock(label = "PM", startMinutesSinceMidnight = 12 * 60, periodDurationMinutes = 60, periodCount = 5, breakAfterPeriod = 2, breakDurationMinutes = 15)
-        val config = PeriodConfigEntity(activeDays = "1", blocksEncoded = PeriodBlock.encodeList(listOf(am, pm)))
-
-        val slots = TimeslotGenerator.generate(config).sortedBy { it.periodIndex }
+        val slots = TimeslotGenerator.generate(listOf(am, pm), listOf(1)).sortedBy { it.periodIndex }
         assertEquals(10, slots.size) // 5 AM + 5 PM, periodIndex contiguous 0..9
 
         // AM block starts exactly at 6:30 and periods run back-to-back within it.

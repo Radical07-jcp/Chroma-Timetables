@@ -23,17 +23,19 @@ import com.jpagdi.cromascheduler.engine.model.Timeslot
 import com.jpagdi.cromascheduler.viewmodel.TeacherAvailabilityViewModel
 import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
 
-private val DAY_LABELS = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
+private val DAY_LABELS = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat")
+// Availability blocks are period-INDEX based, shared across every timetable a teacher is scheduled
+// into (see AvailabilityBlockEntity — keyed by day+periodIndex only, not by run), so this grid isn't
+// tied to any one timetable's own period count. 10 periods/day covers every school this app has been
+// built against so far; a school running more than that per day is a rare enough case that the fix,
+// if it ever comes up, is to make this configurable, not to derive it from an arbitrary run.
+private const val GRID_PERIODS_PER_DAY = 10
 
 @Composable
 fun TeacherAvailabilityScreen(teacherId: String, teacherName: String, onBack: () -> Unit) {
     val container = LocalAppContainer.current
     val viewModel: TeacherAvailabilityViewModel = viewModel(factory = ViewModelFactory(container))
     LaunchedEffect(teacherId) { viewModel.load(teacherId) }
-
-    val config = viewModel.periodConfig
-    val activeDays = config.activeDaysList()
-    val dayLabels = DAY_LABELS.filter { it.first in activeDays }
 
     Scaffold(topBar = { CromaTopBar("$teacherName — Availability", onBack) }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -47,15 +49,15 @@ fun TeacherAvailabilityScreen(teacherId: String, teacherName: String, onBack: ()
                 item {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Spacer(Modifier.width(56.dp))
-                        dayLabels.forEach { (_, label) ->
+                        DAY_LABELS.forEach { (_, label) ->
                             Text(label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
-                items(config.totalPeriodsPerDay()) { period ->
+                items(GRID_PERIODS_PER_DAY) { period ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("P${period + 1}", modifier = Modifier.width(56.dp), style = MaterialTheme.typography.labelMedium)
-                        dayLabels.forEach { (day, _) ->
+                        DAY_LABELS.forEach { (day, _) ->
                             val blocked = Timeslot(day, period) in viewModel.blockedSlots
                             Box(
                                 modifier = Modifier

@@ -13,27 +13,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jpagdi.cromascheduler.data.entity.PeriodBlock
-import com.jpagdi.cromascheduler.di.LocalAppContainer
-import com.jpagdi.cromascheduler.viewmodel.PeriodConfigViewModel
-import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
+import com.jpagdi.cromascheduler.viewmodel.CreateTimetableViewModel
 
 private val DAY_LABELS = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
 private val DURATION_PRESETS = listOf(40, 45, 50, 55, 60)
 
+/**
+ * Right after picking a type (see ChooseTimetableTypeScreen), before Generate — this timetable's
+ * OWN periods, never a shared setting. Nothing here calls the repository; [viewModel] just holds
+ * the blocks/days in memory until GenerateScreen actually creates the run with them.
+ */
 @Composable
-fun DefinePeriodsScreen(onBack: () -> Unit) {
-    val container = LocalAppContainer.current
-    val viewModel: PeriodConfigViewModel = viewModel(factory = ViewModelFactory(container))
-    LaunchedEffect(Unit) { viewModel.load() }
-
-    val config = viewModel.config
-    val blocks = config.blocks()
-
-    fun updateBlocks(newBlocks: List<PeriodBlock>) {
-        viewModel.update(config.copy(blocksEncoded = PeriodBlock.encodeList(newBlocks)))
-    }
+fun DefineTimetablePeriodsScreen(viewModel: CreateTimetableViewModel, onBack: () -> Unit, onNext: () -> Unit) {
+    val blocks = viewModel.periodBlocks
+    val activeDays = viewModel.activeDays
 
     Scaffold(topBar = { CromaTopBar("Define Periods", onBack) }) { padding ->
         Column(
@@ -45,7 +39,7 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "Add one block per continuous run of periods your school has — a single all-day block with a lunch break inside it, or separate AM/PM blocks with a gap between them. Each block has its own start time, period length, and period count.",
+                "Add one block per continuous run of periods — a single all-day block with a lunch break inside it, or separate AM/PM blocks with a gap between them. This is specific to the timetable you're creating now; another timetable can use completely different periods.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
@@ -53,15 +47,15 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
                 BlockEditor(
                     block = block,
                     canRemove = blocks.size > 1,
-                    onChange = { updated -> updateBlocks(blocks.toMutableList().also { it[index] = updated }) },
-                    onRemove = { updateBlocks(blocks.toMutableList().also { it.removeAt(index) }) },
+                    onChange = { updated -> viewModel.setPeriodBlocks(blocks.toMutableList().also { it[index] = updated }) },
+                    onRemove = { viewModel.setPeriodBlocks(blocks.toMutableList().also { it.removeAt(index) }) },
                 )
             }
 
             OutlinedButton(
                 onClick = {
                     val previousEnd = blocks.lastOrNull()?.computedEndMinutes() ?: (7 * 60)
-                    updateBlocks(blocks + PeriodBlock(label = "Block ${blocks.size + 1}", startMinutesSinceMidnight = previousEnd, periodDurationMinutes = 60, periodCount = 4))
+                    viewModel.setPeriodBlocks(blocks + PeriodBlock(label = "Block ${blocks.size + 1}", startMinutesSinceMidnight = previousEnd, periodDurationMinutes = 60, periodCount = 4))
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -73,14 +67,14 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Active days", style = MaterialTheme.typography.titleSmall)
-                    val activeDays = config.activeDaysList().toSet()
+                    val activeSet = activeDays.toSet()
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         DAY_LABELS.forEach { (dayNum, label) ->
                             FilterChip(
-                                selected = dayNum in activeDays,
+                                selected = dayNum in activeSet,
                                 onClick = {
-                                    val updated = if (dayNum in activeDays) activeDays - dayNum else activeDays + dayNum
-                                    viewModel.update(config.copy(activeDays = updated.sorted().joinToString(",")))
+                                    val updated = if (dayNum in activeSet) activeSet - dayNum else activeSet + dayNum
+                                    viewModel.setActiveDays(updated.sorted())
                                 },
                                 label = { Text(label) },
                             )
@@ -89,14 +83,15 @@ fun DefinePeriodsScreen(onBack: () -> Unit) {
                 }
             }
 
-            Button(onClick = { viewModel.save() }, enabled = !viewModel.isSaving, modifier = Modifier.fillMaxWidth()) {
-                Text(if (viewModel.isSaving) "Saving…" else "Save & Regenerate Periods")
+            val canContinue = blocks.isNotEmpty() && activeDays.isNotEmpty()
+            Button(onClick = onNext, enabled = canContinue, modifier = Modifier.fillMaxWidth()) {
+                Text("Continue")
             }
-            if (viewModel.savedConfirmation) {
+            if (!canContinue) {
                 Text(
-                    "Saved. Existing schedules keep their assignments, but re-validate them if you changed period length, count, or blocks.",
-                    color = MaterialTheme.colorScheme.primary,
+                    "Add at least one block and one active day to continue.",
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
                 )
             }
         }
@@ -198,7 +193,6 @@ private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (Perio
 
             HorizontalDivider()
 
-            // Short break — a mid-block recess, distinct from lunch below.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = enableBreak, onCheckedChange = { checked ->
                     enableBreak = checked
@@ -233,8 +227,6 @@ private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (Perio
                 }
             }
 
-            // Lunch break — its own toggle and its own position, since a school with one continuous
-            // block typically wants both a short mid-morning recess AND a longer lunch later on.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = enableLunch, onCheckedChange = { checked ->
                     enableLunch = checked

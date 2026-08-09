@@ -26,6 +26,7 @@ import com.jpagdi.cromascheduler.di.CromaApplication
 import com.jpagdi.cromascheduler.di.LocalAppContainer
 import com.jpagdi.cromascheduler.navigation.CromaRoutes
 import com.jpagdi.cromascheduler.ui.*
+import com.jpagdi.cromascheduler.viewmodel.CreateTimetableViewModel
 import com.jpagdi.cromascheduler.viewmodel.ThemeViewModel
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
-                val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.factory(container.themePreferenceStore))
+                val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.factory(container.appPreferencesStore))
                 val themeMode by themeViewModel.themeMode.collectAsState()
 
                 CromaSchedulerTheme(themeMode = themeMode) {
@@ -59,6 +60,13 @@ private fun CromaApp(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Two independent wizard instances, each living for the lifetime of MainActivity (not scoped
+    // to a single nav destination) so their state survives across the 3 screens each wizard spans.
+    // Separate instances because Create and Repair-upload can each be mid-flow independently —
+    // starting one shouldn't clobber progress in the other.
+    val createWizard: CreateTimetableViewModel = viewModel()
+    val repairWizard: CreateTimetableViewModel = viewModel(key = "repairWizard")
+
     fun closeDrawerThen(action: () -> Unit) {
         scope.launch { drawerState.close() }
         action()
@@ -73,9 +81,14 @@ private fun CromaApp(
                 actions = SidebarActions(
                     onHome = { closeDrawerThen { navController.navigate(CromaRoutes.HOME) { popUpTo(CromaRoutes.HOME) { inclusive = true } } } },
                     onTeachers = { closeDrawerThen { navController.navigate(CromaRoutes.TEACHERS) } },
-                    onDefinePeriods = { closeDrawerThen { navController.navigate(CromaRoutes.DEFINE_PERIODS) } },
-                    onRepair = { closeDrawerThen { navController.navigate(CromaRoutes.REPAIR_UPLOAD) } },
+                    onRepair = {
+                        closeDrawerThen {
+                            repairWizard.reset()
+                            navController.navigate(CromaRoutes.REPAIR_CHOOSE_TYPE)
+                        }
+                    },
                     onSettings = { closeDrawerThen { navController.navigate(CromaRoutes.SETTINGS) } },
+                    onAbout = { closeDrawerThen { navController.navigate(CromaRoutes.ABOUT) } },
                 ),
             )
         },
@@ -84,26 +97,68 @@ private fun CromaApp(
             composable(CromaRoutes.HOME) {
                 HomeScreen(
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onOpenWorkspace = { type -> navController.navigate(CromaRoutes.workspace(type.name)) },
+                    onOpenTimetable = { runId -> navController.navigate(CromaRoutes.timetableDetail(runId)) },
+                    onCreateTimetable = {
+                        createWizard.reset()
+                        navController.navigate(CromaRoutes.CREATE_CHOOSE_TYPE)
+                    },
                 )
             }
-            composable(
-                CromaRoutes.WORKSPACE,
-                arguments = listOf(navArgument("type") { type = NavType.StringType }),
-            ) { entry ->
-                val type = SessionTypeEntity.valueOf(entry.arguments!!.getString("type")!!)
-                TimetableWorkspaceScreen(
-                    sessionType = type,
+
+            // --- New Timetable wizard ---
+            composable(CromaRoutes.CREATE_CHOOSE_TYPE) {
+                ChooseTimetableTypeScreen(
+                    viewModel = createWizard,
                     onBack = { navController.popBackStack() },
-                    onImport = { navController.navigate(CromaRoutes.import(type.name)) },
-                    onGenerate = { navController.navigate(CromaRoutes.generate(type.name)) },
-                    onValidate = { runId -> navController.navigate(CromaRoutes.validate(runId)) },
-                    onOptimize = { runId -> navController.navigate(CromaRoutes.optimize(runId)) },
-                    onResults = { runId -> navController.navigate(CromaRoutes.results(runId)) },
-                    onExport = { runId, runName -> navController.navigate(CromaRoutes.export(runId, runName)) },
-                    onDefinePeriods = { navController.navigate(CromaRoutes.DEFINE_PERIODS) },
+                    onNext = { navController.navigate(CromaRoutes.CREATE_DEFINE_PERIODS) },
                 )
             }
+            composable(CromaRoutes.CREATE_DEFINE_PERIODS) {
+                DefineTimetablePeriodsScreen(
+                    viewModel = createWizard,
+                    onBack = { navController.popBackStack() },
+                    onNext = { navController.navigate(CromaRoutes.CREATE_GENERATE) },
+                )
+            }
+            composable(CromaRoutes.CREATE_GENERATE) {
+                GenerateScreen(
+                    wizard = createWizard,
+                    onBack = { navController.popBackStack() },
+                    onImportData = { createWizard.sessionType?.let { navController.navigate(CromaRoutes.import(it.name)) } },
+                    onDone = { runId ->
+                        createWizard.reset()
+                        navController.navigate(CromaRoutes.timetableDetail(runId)) {
+                            popUpTo(CromaRoutes.HOME)
+                        }
+                    },
+                )
+            }
+
+            // --- Repair-upload wizard: same first two steps, different third step ---
+            composable(CromaRoutes.REPAIR_CHOOSE_TYPE) {
+                ChooseTimetableTypeScreen(
+                    viewModel = repairWizard,
+                    onBack = { navController.popBackStack() },
+                    onNext = { navController.navigate(CromaRoutes.REPAIR_DEFINE_PERIODS) },
+                )
+            }
+            composable(CromaRoutes.REPAIR_DEFINE_PERIODS) {
+                DefineTimetablePeriodsScreen(
+                    viewModel = repairWizard,
+                    onBack = { navController.popBackStack() },
+                    onNext = { navController.navigate(CromaRoutes.REPAIR_UPLOAD) },
+                )
+            }
+            composable(CromaRoutes.REPAIR_UPLOAD) {
+                RepairUploadScreen(
+                    wizard = repairWizard,
+                    onBack = { navController.popBackStack() },
+                    onImported = { runId ->
+                        navController.navigate(CromaRoutes.repair(runId)) { popUpTo(CromaRoutes.REPAIR_CHOOSE_TYPE) { inclusive = true } }
+                    },
+                )
+            }
+
             composable(
                 CromaRoutes.IMPORT,
                 arguments = listOf(navArgument("type") { type = NavType.StringType }),
@@ -112,15 +167,18 @@ private fun CromaApp(
                 ImportScreen(sessionType = type, onBack = { navController.popBackStack() })
             }
             composable(
-                CromaRoutes.GENERATE,
-                arguments = listOf(navArgument("type") { type = NavType.StringType }),
+                CromaRoutes.TIMETABLE_DETAIL,
+                arguments = listOf(navArgument("runId") { type = NavType.StringType }),
             ) { entry ->
-                val type = SessionTypeEntity.valueOf(entry.arguments!!.getString("type")!!)
-                GenerateScreen(
-                    sessionType = type,
+                val runId = entry.arguments!!.getString("runId")!!
+                TimetableDetailScreen(
+                    runId = runId,
                     onBack = { navController.popBackStack() },
-                    onDefinePeriods = { navController.navigate(CromaRoutes.DEFINE_PERIODS) },
-                    onDone = { navController.popBackStack() },
+                    onValidate = { navController.navigate(CromaRoutes.validate(runId)) },
+                    onOptimize = { navController.navigate(CromaRoutes.optimize(runId)) },
+                    onResults = { navController.navigate(CromaRoutes.results(runId)) },
+                    onExport = { rId, runName -> navController.navigate(CromaRoutes.export(rId, runName)) },
+                    onDeleted = { navController.popBackStack(CromaRoutes.HOME, inclusive = false) },
                 )
             }
             composable(
@@ -144,12 +202,6 @@ private fun CromaApp(
                     onBack = { navController.popBackStack() },
                     onOptimize = { newRunId -> navController.navigate(CromaRoutes.optimize(newRunId)) },
                     onViewTimetable = { newRunId -> navController.navigate(CromaRoutes.results(newRunId)) },
-                )
-            }
-            composable(CromaRoutes.REPAIR_UPLOAD) {
-                RepairUploadScreen(
-                    onBack = { navController.popBackStack() },
-                    onImported = { runId -> navController.navigate(CromaRoutes.repair(runId)) { popUpTo(CromaRoutes.REPAIR_UPLOAD) { inclusive = true } } },
                 )
             }
             composable(
@@ -202,14 +254,11 @@ private fun CromaApp(
                 val teacherName = URLDecoder.decode(entry.arguments!!.getString("teacherName")!!, "UTF-8")
                 TeacherAvailabilityScreen(teacherId = teacherId, teacherName = teacherName, onBack = { navController.popBackStack() })
             }
-            composable(CromaRoutes.DEFINE_PERIODS) {
-                DefinePeriodsScreen(onBack = { navController.popBackStack() })
-            }
             composable(CromaRoutes.SETTINGS) {
-                SettingsTabScreen(
-                    onBack = { navController.popBackStack() },
-                    onDefinePeriods = { navController.navigate(CromaRoutes.DEFINE_PERIODS) },
-                )
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(CromaRoutes.ABOUT) {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
         }
     }

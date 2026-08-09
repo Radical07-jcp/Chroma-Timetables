@@ -4,16 +4,16 @@ import androidx.room.withTransaction
 import com.jpagdi.cromascheduler.data.db.CromaDatabase
 import com.jpagdi.cromascheduler.data.entity.AvailabilityEntityType
 import com.jpagdi.cromascheduler.data.entity.ConflictRecordEntity
-import com.jpagdi.cromascheduler.data.entity.PeriodConfigEntity
+import com.jpagdi.cromascheduler.data.entity.PeriodBlock
 import com.jpagdi.cromascheduler.data.entity.ScheduleAssignmentEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.entity.SessionEntity
 import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import com.jpagdi.cromascheduler.data.export.ScheduleExportRow
 import com.jpagdi.cromascheduler.data.timeslot.TimeslotGenerator
+import com.jpagdi.cromascheduler.data.timeslot.TimeslotInfo
 import com.jpagdi.cromascheduler.engine.SchedulingEngine
 import com.jpagdi.cromascheduler.engine.SchedulingInput
-import com.jpagdi.cromascheduler.engine.SchedulingOutput
 import com.jpagdi.cromascheduler.engine.coloring.ColoringAlgorithmRegistry
 import com.jpagdi.cromascheduler.engine.model.Timeslot
 import com.jpagdi.cromascheduler.engine.optimize.OptimizationResult
@@ -39,18 +39,16 @@ object ScheduleMode {
  * Room and turns engine output back into persisted rows. Every "mode" the spec
  * lists (Generate / Generate Exam / Validate / Repair / Optimize) goes through the
  * SAME underlying engine calls — the only thing that differs between them is which
- * sessions get selected and which engine entry point gets called, exactly as the
- * spec's Application Modes section requires ("The same mathematical scheduling
- * engine should power every mode").
+ * sessions get selected and which engine entry point gets called.
  */
 class ScheduleRepository(private val database: CromaDatabase) {
 
-    suspend fun buildSchedulingInput(sessionFilter: (SessionEntity) -> Boolean = { true }): SchedulingInput {
+    /** [timeslots] is always supplied by the caller now — see [timeslotsFor], the one place that decides which run's period blocks apply. There's no global fallback here on purpose: a caller that forgets to pass real timeslots gets an empty, clearly-broken result, not a silently-wrong one borrowed from some other run. */
+    suspend fun buildSchedulingInput(timeslots: List<TimeslotInfo>, sessionFilter: (SessionEntity) -> Boolean = { true }): SchedulingInput {
         val teachers = database.teacherDao().getAll()
         val rooms = database.roomDao().getAll()
         val sections = database.sectionDao().getAll()
         val sessions = database.sessionDao().getAll().filter(sessionFilter)
-        val timeslots = database.timeslotDao().getAll()
 
         val engineSessions = sessions.toEngineSessions()
         val engineRooms = rooms.map { EngineRoom(it.id, it.capacity, it.type) }
@@ -72,11 +70,6 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val allTimeslots = timeslots.map { Timeslot(it.dayOfWeek, it.periodIndex) }
         val definedPeriodsByDay = timeslots.groupBy { it.dayOfWeek }.mapValues { (_, v) -> v.map { it.periodIndex }.toSet() }
 
-        // Each session's candidate pool = every defined timeslot minus its own
-        // teacher's blocked periods. Room availability is intentionally NOT
-        // filtered here — see Phase 1's ConflictGraph doc comment on why room
-        // conflicts are resolved in a separate pass (RoomAssigner), not baked
-        // into the timeslot pool used for coloring.
         val availableBySession = engineSessions.associate { session ->
             val blocked = session.teacherId?.let { blockedTeacher[it] }.orEmpty()
             session.id to allTimeslots.filter { it !in blocked }
@@ -94,36 +87,67 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     /**
+     * Decodes a run's OWN stored period blocks/days and regenerates its timeslot grid on the
+     * spot — this is what replaced reading one shared global `timeslots` table. A run created
+     * before periodBlocksEncoded/activeDaysEncoded existed (empty strings) falls back to a
+     * generic default rather than producing zero timeslots and silently unresolving everything.
+     */
+    private fun timeslotsFor(run: ScheduleRunEntity): List<TimeslotInfo> {
+        val blocks = PeriodBlock.decodeList(run.periodBlocksEncoded).ifEmpty { PeriodBlock.FALLBACK_DEFAULT }
+        val days = run.activeDaysEncoded.split(",").mapNotNull { it.trim().toIntOrNull() }.ifEmpty { PeriodBlock.FALLBACK_DEFAULT_DAYS }
+        return TimeslotGenerator.generate(blocks, days)
+    }
+
+    /**
      * Generate New Schedule / Generate Examination Schedule / any other type-specific run.
      *
      * [sessionType] is mandatory and is ANDed into the session selection alongside the caller's own
-     * [sessionFilter] — a run can never end up colored from a mix of e.g. CLASS and LAB sessions,
-     * matching the "CSV data must not mix schedule types" requirement all the way through to
-     * scheduling, not just at import time. The resulting [ScheduleRunEntity.sessionType] is what Home
-     * and Timetable Detail use to label and filter runs.
+     * [sessionFilter] — a run can never end up colored from a mix of e.g. CLASS and LAB sessions.
+     *
+     * [periodBlocks]/[activeDays] are THIS timetable's own periods, chosen moments earlier in the
+     * creation wizard (pick type -> define periods -> generate) — not read from any shared setting.
+     * That's what makes different timetables able to have different time periods, and it's also the
+     * fix for the old "select more than one day -> blank schedule" bug: periods are computed once,
+     * in memory, right here, in the same call that uses them, instead of being saved to a database
+     * table and separately read back by a different code path moments later.
      */
     suspend fun generate(
         name: String,
         mode: String,
         sessionType: SessionTypeEntity,
+        periodBlocks: List<PeriodBlock>,
+        activeDays: List<Int>,
         algorithmName: String = ColoringAlgorithmRegistry.default.name,
         sessionFilter: (SessionEntity) -> Boolean = { true },
     ): String {
-        val input = buildSchedulingInput { session -> session.type == sessionType && sessionFilter(session) }
+        val sortedDays = activeDays.sorted()
+        val timeslots = TimeslotGenerator.generate(periodBlocks, sortedDays)
+        val input = buildSchedulingInput(timeslots) { session -> session.type == sessionType && sessionFilter(session) }
         val algorithm = ColoringAlgorithmRegistry.algorithms[algorithmName] ?: ColoringAlgorithmRegistry.default
         val startTime = System.currentTimeMillis()
         val output = SchedulingEngine.generate(input, algorithm)
         val elapsed = System.currentTimeMillis() - startTime
 
         val runId = UUID.randomUUID().toString()
-        val run = ScheduleRunEntity(runId, name, System.currentTimeMillis(), algorithm.name, mode, elapsed, sessionType)
+        val run = ScheduleRunEntity(
+            id = runId,
+            name = name,
+            createdAtEpochMillis = System.currentTimeMillis(),
+            algorithmUsed = algorithm.name,
+            mode = mode,
+            executionTimeMillis = elapsed,
+            sessionType = sessionType,
+            periodBlocksEncoded = PeriodBlock.encodeList(periodBlocks),
+            activeDaysEncoded = sortedDays.joinToString(","),
+        )
         persistRun(run, output.assignments, output.roomBySession, output.violations)
         return runId
     }
 
-    /** Validate Existing Schedule — re-checks a saved run's current assignments and refreshes its conflict records. */
+    /** Validate Existing Schedule — re-checks a saved run's current assignments (against its OWN period blocks and only its own session type) and refreshes its conflict records. */
     suspend fun validate(runId: String): List<ConstraintViolation> {
-        val input = buildSchedulingInput()
+        val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
+        val input = buildSchedulingInput(timeslotsFor(run)) { it.type == run.sessionType }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(runId)
         val assignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -150,14 +174,18 @@ class ScheduleRepository(private val database: CromaDatabase) {
     /**
      * The standalone Repair feature's entry point — a school uploads an assignments.csv describing
      * a schedule that ALREADY EXISTS (possibly with conflicts) rather than asking the engine to
-     * generate one. This persists it as a new run exactly as given (no coloring, no engine
-     * involvement at all) and then immediately calls [validate] on it, so the returned violations
-     * are real and the run's conflict_records are already populated the moment this returns —
-     * there's no separate "now go validate it" step the caller has to remember.
+     * generate one. [periodBlocks]/[activeDays] are the periods THIS uploaded schedule follows
+     * (chosen via the same creation-wizard periods step Generate uses), stored on the run so
+     * Validate/Optimize/Export against it use the right grid. This persists it as a new run exactly
+     * as given (no coloring, no engine involvement at all) and then immediately calls [validate] on
+     * it, so the returned violations are real and the run's conflict_records are already populated
+     * the moment this returns.
      */
     suspend fun importExistingSchedule(
         name: String,
         sessionType: SessionTypeEntity,
+        periodBlocks: List<PeriodBlock>,
+        activeDays: List<Int>,
         rows: List<ScheduleAssignmentEntity>,
     ): Pair<String, List<ConstraintViolation>> {
         val runId = UUID.randomUUID().toString()
@@ -169,6 +197,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
             mode = ScheduleMode.IMPORTED,
             executionTimeMillis = 0,
             sessionType = sessionType,
+            periodBlocksEncoded = PeriodBlock.encodeList(periodBlocks),
+            activeDaysEncoded = activeDays.sorted().joinToString(","),
         )
         val assignments = rows.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = rows.mapNotNull { r -> r.roomId?.let { r.sessionId to it } }.toMap()
@@ -178,14 +208,14 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     /**
-     * Repair Conflicting Schedule — produces a NEW schedule run (mode REPAIR)
-     * rather than mutating the original, so the "before" state stays available
-     * for comparison/undo. [sourceRunId] is validated fresh (not read from
-     * possibly-stale conflict records) so repair always acts on the schedule's
-     * true current state.
+     * Repair Conflicting Schedule — produces a NEW schedule run (mode REPAIR) rather than mutating
+     * the original. The new run inherits the source run's own period blocks/days and session type —
+     * repairing a schedule never changes what periods or type it was built for, only which sessions
+     * land where.
      */
     suspend fun repair(sourceRunId: String, algorithmName: String = ColoringAlgorithmRegistry.default.name): String {
-        val input = buildSchedulingInput()
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val input = buildSchedulingInput(sourceRun?.let(::timeslotsFor).orEmpty()) { it.type == (sourceRun?.sessionType ?: SessionTypeEntity.CLASS) }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(sourceRunId)
         val existingAssignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val existingRoomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -195,7 +225,6 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val result: RepairResult = RepairEngine.repair(input, existingAssignments, existingRoomBySession, algorithm)
         val elapsed = System.currentTimeMillis() - startTime
 
-        val sourceRun = database.scheduleRunDao().getAll().find { it.id == sourceRunId }
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
             id = runId,
@@ -205,6 +234,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
             mode = ScheduleMode.REPAIR,
             executionTimeMillis = elapsed,
             sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
+            periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
+            activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
         )
         persistRun(run, result.assignments, result.roomBySession, result.remainingViolations)
         return runId
@@ -212,7 +243,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
 
     /** Optimize Existing Schedule — also produces a new run, same reasoning as repair(). */
     suspend fun optimize(sourceRunId: String, maxPasses: Int = 3): String {
-        val input = buildSchedulingInput()
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val input = buildSchedulingInput(sourceRun?.let(::timeslotsFor).orEmpty()) { it.type == (sourceRun?.sessionType ?: SessionTypeEntity.CLASS) }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(sourceRunId)
         val assignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -237,7 +269,6 @@ class ScheduleRepository(private val database: CromaDatabase) {
             ),
         )
 
-        val sourceRun = database.scheduleRunDao().getAll().find { it.id == sourceRunId }
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
             id = runId,
@@ -247,6 +278,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
             mode = ScheduleMode.OPTIMIZE,
             executionTimeMillis = elapsed,
             sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
+            periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
+            activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
         )
         persistRun(run, result.assignments, result.roomBySession, violations)
         return runId
@@ -255,6 +288,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
     suspend fun getRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAll()
 
     suspend fun getRun(runId: String): ScheduleRunEntity? = database.scheduleRunDao().getById(runId)
+
+    /** A run's own period blocks, decoded — what Home/Timetable Detail display as "define time period" for that entry. */
+    fun periodBlocksOf(run: ScheduleRunEntity): List<PeriodBlock> = PeriodBlock.decodeList(run.periodBlocksEncoded)
+
+    fun activeDaysOf(run: ScheduleRunEntity): List<Int> = run.activeDaysEncoded.split(",").mapNotNull { it.trim().toIntOrNull() }
 
     /** runId -> conflict count, for every run that has at least one conflict. Missing from the map means clean. */
     suspend fun getConflictCountsByRun(): Map<String, Int> =
@@ -270,6 +308,9 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     suspend fun getTeachers(): List<com.jpagdi.cromascheduler.data.entity.TeacherEntity> = database.teacherDao().getAll()
+
+    /** Whether Generate has anything to work with yet for [type] — GenerateScreen uses this to point someone at Import Data instead of letting them tap Generate against zero sessions. */
+    suspend fun sessionCountFor(type: SessionTypeEntity): Int = database.sessionDao().getAll().count { it.type == type }
 
     data class HomeCounts(val teachers: Int, val subjects: Int, val rooms: Int, val sessions: Int)
 
@@ -297,50 +338,6 @@ class ScheduleRepository(private val database: CromaDatabase) {
         }
     }
 
-    /** Current period configuration, or the built-in default (60-min periods, Mon-Fri, 8/day) if none has been set yet. */
-    suspend fun getPeriodConfig(): PeriodConfigEntity = database.periodConfigDao().get() ?: PeriodConfigEntity.DEFAULT
-
-    /** What GenerateScreen gates on — true only once a person has actually saved their own period config via Define Periods, never for the auto-seeded default. */
-    suspend fun isPeriodConfigured(): Boolean = database.periodConfigDao().get()?.isUserConfigured == true
-
-    /**
-     * Called once at app startup (see AppContainer). If no period config has ever
-     * been saved, this seeds the built-in default and generates its timeslot grid
-     * — otherwise Generate silently produces nothing at all on a fresh install,
-     * since every session's candidate pool comes from the `timeslots` table and
-     * that table starts empty. getPeriodConfig() already falls back to
-     * PeriodConfigEntity.DEFAULT for *display* purposes, but a fallback value
-     * that's never persisted doesn't help buildSchedulingInput(), which reads the
-     * `timeslots` table directly. This makes the default real, not just a UI
-     * placeholder, while Settings → Define Periods remains how you change it.
-     */
-    suspend fun ensureDefaultPeriodConfigExists() {
-        if (database.periodConfigDao().get() == null) {
-            savePeriodConfigAndRegenerate(PeriodConfigEntity.DEFAULT)
-        }
-    }
-
-    /**
-     * Saves a new period configuration and regenerates the entire timeslot grid
-     * from it. This intentionally REPLACES all timeslots rather than diffing —
-     * changing period length invalidates every existing timeslot's meaning
-     * (period 3 at 45 minutes and period 3 at 60 minutes are not the same slot),
-     * so a partial merge would be actively misleading. Any schedule runs
-     * generated before a regeneration keep their saved (dayOfWeek, periodIndex)
-     * assignments, but re-running Validate against them afterward may surface
-     * new DURATION_EXCEEDS_AVAILABLE_PERIODS violations if the new grid is
-     * shorter — that's correct behavior, not a bug, and is exactly what
-     * Validate mode is for.
-     */
-    suspend fun savePeriodConfigAndRegenerate(config: PeriodConfigEntity) {
-        val timeslots = TimeslotGenerator.generate(config)
-        database.withTransaction {
-            database.periodConfigDao().upsert(config)
-            database.timeslotDao().clear()
-            database.timeslotDao().upsertAll(timeslots)
-        }
-    }
-
     suspend fun getAssignments(runId: String): List<ScheduleAssignmentEntity> = database.scheduleRunDao().getAssignmentsFor(runId)
 
     suspend fun getConflicts(runId: String): List<ConflictRecordEntity> = database.scheduleRunDao().getConflictsFor(runId)
@@ -348,11 +345,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
     /**
      * Joins a run's raw assignments against every name lookup (subject/teacher/
      * section/room/timeslot) needed for display. Shared by the Results screen and
-     * every export format — building this join once here means both stay
-     * consistent instead of each screen independently deciding how to render an
-     * unassigned room or a missing timeslot definition.
+     * every export format. Timeslot start/end times come from THIS run's own
+     * period blocks, not a shared table.
      */
     suspend fun buildExportRows(runId: String): List<ScheduleExportRow> {
+        val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
         val assignments = database.scheduleRunDao().getAssignmentsFor(runId)
             .sortedWith(compareBy({ it.dayOfWeek }, { it.periodIndex }))
         val sessions = database.sessionDao().getAll().associateBy { it.id }
@@ -360,7 +357,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val teachers = database.teacherDao().getAll().associateBy { it.id }
         val sections = database.sectionDao().getAll().associateBy { it.id }
         val rooms = database.roomDao().getAll().associateBy { it.id }
-        val timeslots = database.timeslotDao().getAll().associateBy { it.dayOfWeek to it.periodIndex }
+        val timeslots = timeslotsFor(run).associateBy { it.dayOfWeek to it.periodIndex }
 
         return assignments.mapNotNull { a ->
             val session = sessions[a.sessionId] ?: return@mapNotNull null

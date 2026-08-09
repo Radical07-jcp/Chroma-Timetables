@@ -30,13 +30,11 @@ import com.jpagdi.cromascheduler.data.entity.*
         SectionEntity::class,
         SessionEntity::class,
         AvailabilityBlockEntity::class,
-        TimeslotEntity::class,
-        PeriodConfigEntity::class,
         ScheduleRunEntity::class,
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 5, // bumped: SessionTypeEntity dropped MEETING/SEMINAR (see MIGRATION_4_5 below)
+    version = 6, // bumped: dropped period_config/timeslots tables, schedule_runs gained periodBlocksEncoded/activeDaysEncoded (see MIGRATION_5_6 below)
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -47,8 +45,6 @@ abstract class CromaDatabase : RoomDatabase() {
     abstract fun sectionDao(): SectionDao
     abstract fun sessionDao(): SessionDao
     abstract fun availabilityDao(): AvailabilityDao
-    abstract fun timeslotDao(): TimeslotDao
-    abstract fun periodConfigDao(): PeriodConfigDao
     abstract fun scheduleRunDao(): ScheduleRunDao
 
     companion object {
@@ -102,6 +98,28 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 }
 
 /**
+ * v5 -> v6: periods stopped being one global, shared setting and became something each
+ * schedule run defines for itself (see ScheduleRunEntity.periodBlocksEncoded/activeDaysEncoded).
+ * The old `period_config` and `timeslots` tables are dropped outright rather than migrated —
+ * there's nothing meaningful to carry forward (a single global config doesn't map onto "each run
+ * has its own"), and existing runs simply fall back to a generic default the first time they're
+ * validated/repaired/optimized/exported after this update (see ScheduleRepository.timeslotsFor()).
+ * This is also the fix for the "choosing more than one day generates a blank timetable" bug: the
+ * old flow was save-period-config -> separately regenerate a GLOBAL timeslot table -> Generate
+ * reads that global table back — three separate steps sharing mutable state. The new flow computes
+ * timeslots in memory, once, directly from the exact blocks/days just chosen, in the same call that
+ * uses them — there's no longer a save-then-reload step where staleness could creep in.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS period_config")
+        db.execSQL("DROP TABLE IF EXISTS timeslots")
+        db.execSQL("ALTER TABLE schedule_runs ADD COLUMN periodBlocksEncoded TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE schedule_runs ADD COLUMN activeDaysEncoded TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
  * function instead of touching Room directly, which is also what was actually
@@ -113,5 +131,5 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
 )
-    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     .build()

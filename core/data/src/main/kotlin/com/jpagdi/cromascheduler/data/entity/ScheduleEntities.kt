@@ -40,17 +40,6 @@ data class AvailabilityBlockEntity(
     val periodIndex: Int,
 )
 
-@Entity(
-    tableName = "timeslots",
-    primaryKeys = ["dayOfWeek", "periodIndex"],
-)
-data class TimeslotEntity(
-    val dayOfWeek: Int,
-    val periodIndex: Int,
-    val startTime: String, // "HH:mm", stored as text — no timezone concerns for a same-device local schedule
-    val endTime: String,
-)
-
 /**
  * One contiguous chunk of a school day — "Morning" 6:30-12:00, "Afternoon"
  * 12:00-5:30, or however many blocks a school actually runs. Each block owns its
@@ -125,61 +114,30 @@ data class PeriodBlock(
 
         fun decodeList(text: String): List<PeriodBlock> =
             if (text.isBlank()) emptyList() else text.split(";").mapNotNull { decode(it) }
+
+        /** Fallback ONLY for a run saved before per-run period storage existed (periodBlocksEncoded/activeDaysEncoded were added together — see ScheduleRunEntity). Every run created through the normal creation wizard always has its own real blocks. */
+        val FALLBACK_DEFAULT = listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8))
+        val FALLBACK_DEFAULT_DAYS = listOf(1, 2, 3, 4, 5)
     }
 }
-
-/**
- * Single-row settings table (id is always "default") capturing how a school defines
- * its day. Different schools genuinely differ here — some run one continuous block
- * of same-length periods, others (like an AM/PM split with a lunch gap between
- * them) need several blocks with different lengths. This is the source of truth
- * TimeslotGenerator reads to (re)build the `timeslots` table; changing it and
- * regenerating is how a school changes its schedule shape without anyone
- * hand-editing rows.
- */
-@Entity(tableName = "period_config")
-data class PeriodConfigEntity(
-    @PrimaryKey val id: String = DEFAULT_ID,
-    val activeDays: String, // comma-joined day-of-week ints, 1=Monday..7=Sunday
-    val blocksEncoded: String, // see PeriodBlock.encodeList/decodeList
-    // false for the auto-seeded PeriodConfigEntity.DEFAULT below, true the moment a person actually
-    // saves something via Settings -> Define Periods — this is what GenerateScreen gates on, since a
-    // generic 60-min/8-period default silently applying to a real school's bell schedule is worse
-    // than blocking Generate with an explicit "set your periods first" message.
-    val isUserConfigured: Boolean = false,
-) {
-    fun blocks(): List<PeriodBlock> = PeriodBlock.decodeList(blocksEncoded)
-
-    fun activeDaysList(): List<Int> = activeDays.split(",").mapNotNull { it.trim().toIntOrNull() }
-
-    /** Total periods across every block in one day — what the teacher-availability grid and Results tables size themselves against. */
-    fun totalPeriodsPerDay(): Int = blocks().sumOf { it.periodCount }
-
-    companion object {
-        const val DEFAULT_ID = "default"
-
-        // A generic single-block default (60-min periods, 8/day, starting 7:30 AM,
-        // Monday-Friday) — NOT tailored to any specific school. Real schools are
-        // expected to replace this via Settings -> Define Periods with their own
-        // block(s), e.g. an AM 6:30-12:00 + PM 12:00-5:30 split.
-        val DEFAULT = PeriodConfigEntity(
-            activeDays = "1,2,3,4,5",
-            blocksEncoded = PeriodBlock.encodeList(
-                listOf(PeriodBlock(label = "Day", startMinutesSinceMidnight = 7 * 60 + 30, periodDurationMinutes = 60, periodCount = 8)),
-            ),
-        )
-    }
-}
-
 
 /**
  * One row per generated schedule "run" — lets Validate/Repair/Optimize target a specific saved schedule.
  *
- * [sessionType] is the schedule TYPE this run was generated for (Class, Examination, Lab, Meeting,
- * Seminar) — added so that Home/Timetable Detail can label and filter runs, and so Generate can never
- * silently mix session types into one run. Every session actually colored into this run has this same
+ * [sessionType] is the schedule TYPE this run was generated for (Class, Examination, Lab) — added so
+ * that Home and Timetable Detail can label and filter runs, and so Generate can never silently mix
+ * session types into one run. Every session actually colored into this run has this same
  * [SessionTypeEntity], enforced by ScheduleRepository.generate() ANDing the caller's sessionFilter with
  * `session.type == sessionType`, not just documented by convention.
+ *
+ * [periodBlocksEncoded] and [activeDaysEncoded] are THIS run's own period definition — encoded the
+ * same way [PeriodBlock.encodeList] always has, and [activeDaysEncoded] the same comma-joined format
+ * [PeriodConfigEntity] used to use. Each run carries its own copy rather than reading one shared
+ * global config, which is what actually makes "different timetables can have different time
+ * periods" true: a Class Schedule generated with an AM/PM split and an Exam Schedule generated with
+ * a single continuous block can coexist, each remembering exactly what it was built with. Empty on
+ * either field means "predates this — fall back to a generic default" (see ScheduleRepository's
+ * timeslotsFor()), which only applies to runs created before this was added.
  */
 @Entity(tableName = "schedule_runs")
 data class ScheduleRunEntity(
@@ -190,6 +148,8 @@ data class ScheduleRunEntity(
     val mode: String, // GENERATE / GENERATE_EXAM / REPAIR / OPTIMIZE
     val executionTimeMillis: Long = 0,
     val sessionType: SessionTypeEntity = SessionTypeEntity.CLASS,
+    val periodBlocksEncoded: String = "",
+    val activeDaysEncoded: String = "",
 )
 
 @Entity(

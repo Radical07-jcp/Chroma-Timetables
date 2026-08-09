@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jpagdi.cromascheduler.data.csv.parseExistingAssignmentsCsv
+import com.jpagdi.cromascheduler.data.entity.PeriodBlock
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import com.jpagdi.cromascheduler.data.repository.ScheduleMode
@@ -46,13 +47,14 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
     }
 
     /**
-     * [sessionType] is mandatory — chosen via GenerateScreen's schedule-type prompt before this is
-     * ever called — and is what makes every run single-type all the way through
-     * ScheduleRepository.generate(). GENERATE_EXAM is still recorded as the run's `mode` when the
-     * type is EXAM, purely for the existing mode-label display; the actual session filtering now
-     * lives in the repository, keyed off [sessionType] itself rather than a special-cased boolean.
+     * [sessionType] is mandatory — chosen in step 1 of the New Timetable wizard — and is what makes
+     * every run single-type all the way through ScheduleRepository.generate(). [periodBlocks] and
+     * [activeDays] are that SAME wizard's step 2, this timetable's own periods, never a shared
+     * setting — see ScheduleRunEntity's doc comment for why that's what makes different timetables
+     * able to have different time periods. GENERATE_EXAM is still recorded as the run's `mode` when
+     * the type is EXAM, purely for the existing mode-label display.
      */
-    fun generate(name: String, sessionType: SessionTypeEntity, algorithmName: String) {
+    fun generate(name: String, sessionType: SessionTypeEntity, periodBlocks: List<PeriodBlock>, activeDays: List<Int>, algorithmName: String) {
         operationState = OperationUiState.Running
         viewModelScope.launch {
             runCatching {
@@ -60,6 +62,8 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
                     name = name,
                     mode = if (sessionType == SessionTypeEntity.EXAM) ScheduleMode.GENERATE_EXAM else ScheduleMode.GENERATE,
                     sessionType = sessionType,
+                    periodBlocks = periodBlocks,
+                    activeDays = activeDays,
                     algorithmName = algorithmName,
                 )
             }.onSuccess { runId -> operationState = OperationUiState.GenerateDone(runId) }
@@ -98,8 +102,8 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
         operationState = OperationUiState.Idle
     }
 
-    /** Reads and parses an assignments.csv from [uri], persists it as a new IMPORTED run under [sessionType], and validates it immediately — the standalone Repair feature's only entry point. */
-    fun importExistingSchedule(context: Context, uri: Uri, name: String, sessionType: SessionTypeEntity) {
+    /** Reads and parses an assignments.csv from [uri], persists it as a new IMPORTED run under [sessionType] with [periodBlocks]/[activeDays], and validates it immediately — the standalone Repair feature's only entry point. */
+    fun importExistingSchedule(context: Context, uri: Uri, name: String, sessionType: SessionTypeEntity, periodBlocks: List<PeriodBlock>, activeDays: List<Int>) {
         operationState = OperationUiState.Running
         viewModelScope.launch {
             runCatching {
@@ -111,7 +115,7 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
                 if (parsed.errors.isNotEmpty()) {
                     error(parsed.errors.joinToString("\n") { "${it.fileName} row ${it.rowNumber}: ${it.message}" })
                 }
-                repository.importExistingSchedule(name, sessionType, parsed.records)
+                repository.importExistingSchedule(name, sessionType, periodBlocks, activeDays, parsed.records)
             }.onSuccess { (runId, violations) -> operationState = OperationUiState.ImportedForRepair(runId, violations) }
                 .onFailure { e -> operationState = OperationUiState.Failed(e.message ?: "Import failed") }
         }

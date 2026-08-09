@@ -3,38 +3,39 @@ package com.jpagdi.cromascheduler.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jpagdi.cromascheduler.data.entity.SessionTypeEntity
 import com.jpagdi.cromascheduler.di.LocalAppContainer
+import com.jpagdi.cromascheduler.viewmodel.CreateTimetableViewModel
 import com.jpagdi.cromascheduler.viewmodel.OperationUiState
 import com.jpagdi.cromascheduler.viewmodel.ScheduleViewModel
 import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
+import kotlinx.coroutines.flow.firstOrNull
 
 /**
- * Generating a schedule is never a silent, unchecked action: ScheduleRepository.generate() already
- * runs every hard constraint through the engine as part of coloring and persists the resulting
- * conflict count on the SAME run it just created — that's the "validation before generating"
- * behavior. What was actually missing before wasn't the validation itself, it was ever SHOWING it:
- * this screen now displays that conflict count immediately, on this screen, before handing off to
- * the Timetable workspace, so it's visibly the result of generating rather than something that
- * only showed up if you separately went and tapped Validate afterward.
+ * Step 3 of the New Timetable wizard — type (step 1) and periods (step 2) are already decided and
+ * live on [wizard]; this screen only adds a name and algorithm, then generates. Automatic
+ * validation happens as part of ScheduleRepository.generate() itself; this screen shows that
+ * result immediately rather than requiring a separate trip to Validate afterward.
  */
 @Composable
-fun GenerateScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onDefinePeriods: () -> Unit, onDone: (runId: String) -> Unit) {
+fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImportData: () -> Unit, onDone: (runId: String) -> Unit) {
     val container = LocalAppContainer.current
     val viewModel: ScheduleViewModel = viewModel(factory = ViewModelFactory(container))
+    val sessionType = wizard.sessionType ?: return
 
     var name by remember { mutableStateOf("${sessionType.label()} — ${java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date())}") }
-    var algorithm by remember { mutableStateOf(viewModel.algorithmNames.firstOrNull { it == "dsatur" } ?: viewModel.algorithmNames.firstOrNull().orEmpty()) }
+    var algorithm by remember { mutableStateOf<String?>(null) }
     var algorithmMenuExpanded by remember { mutableStateOf(false) }
-    var periodsConfigured by remember { mutableStateOf<Boolean?>(null) }
+    var sessionCount by remember { mutableStateOf<Int?>(null) }
     var generatedRunId by remember { mutableStateOf<String?>(null) }
     var conflictCount by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(Unit) { periodsConfigured = container.scheduleRepository.isPeriodConfigured() }
+    LaunchedEffect(Unit) {
+        sessionCount = container.scheduleRepository.sessionCountFor(sessionType)
+        algorithm = container.appPreferencesStore.defaultAlgorithmName.firstOrNull()
+    }
 
     LaunchedEffect(viewModel.operationState) {
         val state = viewModel.operationState
@@ -50,15 +51,15 @@ fun GenerateScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onDefineP
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when {
-                periodsConfigured == false -> {
+                sessionCount == 0 -> {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Set up your periods first", style = MaterialTheme.typography.titleMedium)
+                            Text("No ${sessionType.label().lowercase()} data yet", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Generate needs to know your actual bell schedule — period count, length, and which days run — before it can place sessions. This only takes a minute and is a one-time setup.",
+                                "Import teachers, subjects, rooms, sections, and sessions for this type before generating.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            Button(onClick = onDefinePeriods, modifier = Modifier.fillMaxWidth()) { Text("Define Periods") }
+                            Button(onClick = onImportData, modifier = Modifier.fillMaxWidth()) { Text("Import Data") }
                         }
                     }
                 }
@@ -93,7 +94,7 @@ fun GenerateScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onDefineP
 
                             Box {
                                 OutlinedButton(onClick = { algorithmMenuExpanded = true }) {
-                                    Text("Algorithm: ${algorithm.ifBlank { "dsatur" }}")
+                                    Text("Algorithm: ${algorithm ?: "dsatur"}")
                                 }
                                 DropdownMenu(expanded = algorithmMenuExpanded, onDismissRequest = { algorithmMenuExpanded = false }) {
                                     viewModel.algorithmNames.forEach { n ->
@@ -110,8 +111,8 @@ fun GenerateScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onDefineP
 
                     val state = viewModel.operationState
                     Button(
-                        onClick = { viewModel.generate(name, sessionType, algorithm.ifBlank { "dsatur" }) },
-                        enabled = periodsConfigured == true && state !is OperationUiState.Running,
+                        onClick = { viewModel.generate(name, sessionType, wizard.periodBlocks, wizard.activeDays, algorithm ?: "dsatur") },
+                        enabled = state !is OperationUiState.Running,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (state is OperationUiState.Running) "Generating…" else "Generate ${sessionType.label()}")
