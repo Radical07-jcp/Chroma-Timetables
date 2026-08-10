@@ -42,8 +42,8 @@ fun HomeScreen(onOpenDrawer: () -> Unit, onOpenTimetable: (runId: String) -> Uni
                 onClick = onCreateTimetable,
                 icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
                 text = { Text("New Timetable") },
-                containerColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Gold,
-                contentColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Navy,
+                containerColor = com.jpagdi.cromascheduler.designsystem.LocalButtonAccent.current,
+                contentColor = com.jpagdi.cromascheduler.designsystem.AccentPrefs.textColorFor(com.jpagdi.cromascheduler.designsystem.LocalButtonAccent.current),
             )
         },
     ) { padding ->

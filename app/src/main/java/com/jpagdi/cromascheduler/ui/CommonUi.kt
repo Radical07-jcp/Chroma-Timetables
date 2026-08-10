@@ -27,17 +27,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jpagdi.cromascheduler.R
-import com.jpagdi.cromascheduler.designsystem.CromaColors
+import com.jpagdi.cromascheduler.designsystem.LocalHeaderAccent
+import com.jpagdi.cromascheduler.designsystem.PressStart2PFamily
 import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
 
 /**
  * One accent color across the WHOLE header row (icon + title, background included) — every
  * screen's header goes through this, rather than each screen picking its own title color against
- * a plain background. [accent] defaults to the app's navy so every screen matches unless there's a
- * specific reason to differ.
+ * a plain background. [accent] defaults to [LocalHeaderAccent] — the reference app's "Top Panel
+ * Accent" / GroupA — so every screen matches, and stays live if that accent is ever changed in
+ * Settings, unless there's a specific reason for a screen to override it.
  */
 @Composable
-fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = CromaColors.Navy) {
+fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = LocalHeaderAccent.current) {
     Surface(color = accent) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
@@ -57,7 +59,7 @@ fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = CromaColors.N
  * different app from every other screen.
  */
 @Composable
-fun CromaHomeHeader(onOpenDrawer: () -> Unit, accent: Color = CromaColors.Navy) {
+fun CromaHomeHeader(onOpenDrawer: () -> Unit, accent: Color = LocalHeaderAccent.current) {
     Surface(color = accent) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 8.dp),
@@ -78,10 +80,10 @@ fun CromaHomeHeader(onOpenDrawer: () -> Unit, accent: Color = CromaColors.Navy) 
 
 /**
  * CHROMA / TIMETABLES, two lines, with the gap between them collapsed to just the line's own
- * leading rather than a full second line-height of empty space — that extra gap is what "remove
- * line/row spacing (paragraph spacing)" was about. Setting `lineHeight` equal to `fontSize` on each
- * Text removes Material's default extra leading; a small explicit `padding(top=)` on the second
- * line replaces it with an intentional, much smaller gap instead of relying on default line-height.
+ * leading rather than a full second line-height of empty space. Set in Press Start 2P (the
+ * reference app's own 8-bit/arcade display font), scoped to exactly this composable — every other
+ * Text in the app stays Montserrat via CromaTypography, same "just these two spots" scope the
+ * reference app used this font with. 18sp/9sp matches that app's own header sizing exactly.
  */
 @Composable
 fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
@@ -89,18 +91,19 @@ fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
         Text(
             "CHROMA",
             color = color,
-            fontWeight = FontWeight.Bold,
-            fontSize = 17.sp,
-            lineHeight = 17.sp,
+            fontFamily = PressStart2PFamily,
+            fontSize = 18.sp,
+            lineHeight = 18.sp,
             letterSpacing = 0.6.sp,
         )
         Text(
             "TIMETABLES",
             color = color,
+            fontFamily = PressStart2PFamily,
             fontSize = 9.sp,
             lineHeight = 9.sp,
             letterSpacing = 1.5.sp,
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }

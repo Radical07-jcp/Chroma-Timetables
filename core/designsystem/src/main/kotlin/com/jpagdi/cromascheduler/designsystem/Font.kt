@@ -29,3 +29,11 @@ val MontserratFamily = FontFamily(
     montserrat(FontWeight.SemiBold),
     montserrat(FontWeight.Bold),
 )
+
+/**
+ * Used in exactly two places, per the reference app's own scope for this font: the Home header's
+ * brand title and the sidebar's brand title (see BrandWordmark in CommonUi.kt) — everywhere else
+ * stays Montserrat. A single static weight is enough since PressStart2P-Regular.ttf is the only
+ * cut Google Fonts publishes for this typeface (an 8-bit/arcade display face has no natural bold).
+ */
+val PressStart2PFamily = FontFamily(Font(R.font.press_start_2p, FontWeight.Normal))

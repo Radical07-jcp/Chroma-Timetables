@@ -3,16 +3,14 @@ package com.jpagdi.cromascheduler.designsystem
 import androidx.compose.ui.graphics.Color
 
 /**
- * Every color the app uses comes from here — this replaced an earlier setup that duplicated a
- * near-identical palette in both this file and a set of XML `<color>` resources for a since-removed
- * View-based Home/Timetable-Detail screen pair. Keeping ONE source of truth is the actual fix, not
- * just a preference: two copies of "the app's accent gold" drift out of sync the first time either
- * one gets nudged half a shade during polish, and the app ends up looking like two apps stitched
- * together — which is exactly what happened before this rewrite.
+ * Palette recreated to exactly match a reference app (internally: "MCQ Quick Check" /
+ * mcq_scanner v1.0.0) per explicit request — maroon + gold + cream, not the earlier
+ * icon-derived navy/mint/blue palette. The app's own launcher icon (calendar + graph, unrelated
+ * to this theme swap) is untouched; this file only governs in-app surface/accent colors.
  *
- * Same lesson learned on MCQ Quick Check applies here too: an accent that works as a card fill can
- * still fail contrast for icon/text drawn ON TOP of it, so every accent ships its own pre-picked
- * onIcon/onText color instead of the UI layer assuming white or black always works.
+ * Every color the app uses comes from here — one source of truth, not duplicated into XML
+ * resources anywhere, for the same reason documented on this file before: two copies of "the
+ * app's accent gold" drift out of sync the first time either one gets nudged half a shade.
  */
 data class AccentColor(
     val surface: Color,
@@ -21,46 +19,57 @@ data class AccentColor(
 )
 
 object CromaColors {
-    // Straight from the launcher icon's graph nodes.
-    val Navy = Color(0xFF1B2430)
-    val NavyDark = Color(0xFF10151D)
-    val Mint = Color(0xFF4FE3B0)
-    val Blue = Color(0xFF4C6FF2)
-    val Gold = Color(0xFFFFB020)
-    val Red = Color(0xFFF0374A)
+    // Core brand pair — these two are also GroupA/GroupB's DEFAULT values in AccentPrefs.kt,
+    // restored exactly by "Revert to Default" there, same as the reference app's own behavior.
+    val Maroon = Color(0xFF6B0F14)
+    val MaroonDark = Color(0xFF4A0709)
+    val Gold = Color(0xFFE8B923)
+    val GoldLight = Color(0xFFF5D97A)
+    val Cream = Color(0xFFFFF8E7)
+    val CreamDark = Color(0xFFF2E9D3)
+    val Ink = Color(0xFF221111)
     val White = Color(0xFFFFFFFF)
+    val Black = Color(0xFF000000)
 
-    // Neutral surfaces — Light / Dark / Black variants (Black is true near-#000 for OLED,
-    // not just a darker version of Dark — that distinction is the entire point of a third mode).
-    val SurfaceLight = Color(0xFFF7F8FA)
-    val CardLight = Color(0xFFFFFFFF)
-    val OutlineLight = Color(0xFFE3E6EC)
-    val TextLight = Color(0xFF1B2430)
+    // Dark theme's window background — a maroon-tinted near-black (red channel visibly higher
+    // than green/blue), not a neutral gray; deliberately lighter than Black theme's true black so
+    // the two stay visually distinct tiers instead of converging on nearly the same near-black.
+    val SurfaceDark = Color(0xFF242424)
 
-    val SurfaceDark = Color(0xFF161D27)
-    val CardDark = Color(0xFF212A38)
-    val OutlineDark = Color(0xFF323D4E)
-    val TextDark = Color(0xFFF1F3F7)
+    // Black theme — true near-black, OLED-friendly.
+    val SurfaceBlack = Color(0xFF0D0D0D)
+    val CardBlack = Color(0xFF1A1A1A)
 
-    val SurfaceBlack = Color(0xFF000000)
-    val CardBlack = Color(0xFF121212)
-    val OutlineBlack = Color(0xFF2A2A2A)
-    val TextBlack = Color(0xFFEDEDED)
+    // Solid (not translucent) light text for Dark/Black — Material's own default for
+    // textColorPrimary-equivalent roles in a dark scheme is ~87%-alpha white, not solid; using
+    // solid white here avoids the faded-text look that default produces.
+    val TextDark = White
+
+    // One dedicated card-surface tone per theme, each a deliberate step lighter than that theme's
+    // own background so cards read as raised panels rather than blending flat into the page — not
+    // reused from primary/secondary, independent of whichever accent colors are active.
+    val CardSurfaceLight = White
+    val CardSurfaceDark = Color(0xFF2E2E2E)
+    val CardSurfaceBlack = CardBlack
+
+    // Hairline card border — just enough definition to read as an edge without a heavy outline.
+    val CardStrokeOnLight = Color(0x14000000)
+    val CardStrokeOnDark = Color(0x1FFFFFFF)
 }
 
 object CromaAccents {
-    val Mint = AccentColor(surface = CromaColors.Mint, onIcon = CromaColors.Navy, onText = CromaColors.Navy)
-    val Blue = AccentColor(surface = CromaColors.Blue, onIcon = Color.White, onText = Color.White)
-    val Gold = AccentColor(surface = CromaColors.Gold, onIcon = CromaColors.Navy, onText = CromaColors.Navy)
-    val Red = AccentColor(surface = CromaColors.Red, onIcon = Color.White, onText = Color.White)
-    val Navy = AccentColor(surface = CromaColors.Navy, onIcon = Color.White, onText = Color.White)
+    val Maroon = AccentColor(surface = CromaColors.Maroon, onIcon = Color.White, onText = Color.White)
+    val MaroonLight = AccentColor(surface = Color(0xFFB0293A), onIcon = Color.White, onText = Color.White)
+    val MaroonDark = AccentColor(surface = CromaColors.MaroonDark, onIcon = Color.White, onText = Color.White)
+    val Gold = AccentColor(surface = CromaColors.Gold, onIcon = CromaColors.Ink, onText = CromaColors.Ink)
+    val GoldLight = AccentColor(surface = CromaColors.GoldLight, onIcon = CromaColors.Ink, onText = CromaColors.Ink)
 
-    val default = Blue
+    val default = Maroon
 }
 
-/** Status-pill colors — Home's timetable list and every "N conflicts" badge draw from these three, never a locally invented color. */
+/** Status-pill colors — Home's timetable list and every "N conflicts" badge draw from these three, never a locally invented color. Deliberately independent of the maroon/gold accent system (clean/conflict meaning shouldn't shift if someone picks an unusual accent color). */
 object CromaStatus {
     val Clean = Color(0xFF2FAE68)
-    val Conflicts = CromaColors.Red
+    val Conflicts = Color(0xFFC62828)
     val Pending = Color(0xFF8A93A3)
 }

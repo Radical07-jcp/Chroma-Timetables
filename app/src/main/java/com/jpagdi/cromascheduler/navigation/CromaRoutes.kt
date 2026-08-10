@@ -30,6 +30,8 @@ object CromaRoutes {
     const val TEACHER_AVAILABILITY = "teacher_availability/{teacherId}/{teacherName}"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
+    const val ACCENT_GROUP_A = "settings/accent_group_a"
+    const val ACCENT_GROUP_B = "settings/accent_group_b"
 
     fun import(type: String) = "import/$type"
     fun timetableDetail(runId: String) = "timetable/$runId"

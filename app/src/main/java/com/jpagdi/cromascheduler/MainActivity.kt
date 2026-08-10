@@ -26,6 +26,7 @@ import com.jpagdi.cromascheduler.di.CromaApplication
 import com.jpagdi.cromascheduler.di.LocalAppContainer
 import com.jpagdi.cromascheduler.navigation.CromaRoutes
 import com.jpagdi.cromascheduler.ui.*
+import com.jpagdi.cromascheduler.viewmodel.AccentColorViewModel
 import com.jpagdi.cromascheduler.viewmodel.CreateTimetableViewModel
 import com.jpagdi.cromascheduler.viewmodel.ThemeViewModel
 import kotlinx.coroutines.launch
@@ -41,9 +42,17 @@ class MainActivity : ComponentActivity() {
                 val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.factory(container.appPreferencesStore))
                 val themeMode by themeViewModel.themeMode.collectAsState()
 
-                CromaSchedulerTheme(themeMode = themeMode) {
+                val accentViewModel: AccentColorViewModel = viewModel(factory = AccentColorViewModel.factory(container.appPreferencesStore))
+                val groupA by accentViewModel.groupA.collectAsState()
+                val groupB by accentViewModel.groupB.collectAsState()
+
+                CromaSchedulerTheme(themeMode = themeMode, groupA = groupA, groupB = groupB) {
                     Surface(modifier = Modifier.fillMaxSize()) {
-                        CromaApp(currentThemeMode = themeMode, onThemeModeChange = themeViewModel::setThemeMode)
+                        CromaApp(
+                            currentThemeMode = themeMode,
+                            onThemeModeChange = themeViewModel::setThemeMode,
+                            accentViewModel = accentViewModel,
+                        )
                     }
                 }
             }
@@ -55,6 +64,7 @@ class MainActivity : ComponentActivity() {
 private fun CromaApp(
     currentThemeMode: ThemeMode?,
     onThemeModeChange: (ThemeMode) -> Unit,
+    accentViewModel: AccentColorViewModel,
 ) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -253,7 +263,31 @@ private fun CromaApp(
                 TeacherAvailabilityScreen(teacherId = teacherId, teacherName = teacherName, onBack = { navController.popBackStack() })
             }
             composable(CromaRoutes.SETTINGS) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onPickGroupA = { navController.navigate(CromaRoutes.ACCENT_GROUP_A) },
+                    onPickGroupB = { navController.navigate(CromaRoutes.ACCENT_GROUP_B) },
+                )
+            }
+            composable(CromaRoutes.ACCENT_GROUP_A) {
+                val current by accentViewModel.groupA.collectAsState()
+                AccentColorPickerScreen(
+                    title = "Top Panel Accent",
+                    current = current,
+                    onBack = { navController.popBackStack() },
+                    onPick = { color -> accentViewModel.setGroupA(color); navController.popBackStack() },
+                    onReset = { accentViewModel.resetGroupA(); navController.popBackStack() },
+                )
+            }
+            composable(CromaRoutes.ACCENT_GROUP_B) {
+                val current by accentViewModel.groupB.collectAsState()
+                AccentColorPickerScreen(
+                    title = "Button Accent",
+                    current = current,
+                    onBack = { navController.popBackStack() },
+                    onPick = { color -> accentViewModel.setGroupB(color); navController.popBackStack() },
+                    onReset = { accentViewModel.resetGroupB(); navController.popBackStack() },
+                )
             }
             composable(CromaRoutes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })

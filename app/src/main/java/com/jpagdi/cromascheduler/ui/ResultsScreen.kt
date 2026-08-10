@@ -35,8 +35,8 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, r
                 onClick = { onExport(runId, viewModel.run?.name ?: "Schedule") },
                 text = { Text("Export") },
                 icon = { Icon(Icons.Filled.Download, contentDescription = null) },
-                containerColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Gold,
-                contentColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Navy,
+                containerColor = com.jpagdi.cromascheduler.designsystem.LocalButtonAccent.current,
+                contentColor = com.jpagdi.cromascheduler.designsystem.AccentPrefs.textColorFor(com.jpagdi.cromascheduler.designsystem.LocalButtonAccent.current),
             )
         },
     ) { padding ->

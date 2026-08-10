@@ -121,10 +121,10 @@ private fun iconFor(format: ExportFormat): ImageVector = when (format) {
 }
 
 private fun accentFor(format: ExportFormat) = when (format) {
-    ExportFormat.CSV -> CromaAccents.Mint
-    ExportFormat.EXCEL -> CromaAccents.Blue
+    ExportFormat.CSV -> CromaAccents.GoldLight
+    ExportFormat.EXCEL -> CromaAccents.MaroonLight
     ExportFormat.PDF -> CromaAccents.Gold
-    ExportFormat.PRINT -> CromaAccents.Navy
+    ExportFormat.PRINT -> CromaAccents.Maroon
 }
 
 private fun mimeTypeFor(extension: String): String = when (extension) {

@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.jpagdi.cromascheduler.designsystem.CromaColors
+import com.jpagdi.cromascheduler.designsystem.LocalHeaderAccent
 import com.jpagdi.cromascheduler.designsystem.ThemeMode
 
 data class SidebarActions(
@@ -51,7 +52,7 @@ fun SidebarDrawer(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CromaColors.Navy)
+                    .background(LocalHeaderAccent.current)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

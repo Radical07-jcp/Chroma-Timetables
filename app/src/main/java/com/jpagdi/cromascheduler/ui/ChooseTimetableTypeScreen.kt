@@ -35,7 +35,7 @@ fun ChooseTimetableTypeScreen(viewModel: CreateTimetableViewModel, onBack: () ->
                 title = SessionTypeEntity.CLASS.label(),
                 subtitle = "Regular subject periods for sections",
                 icon = Icons.Filled.MenuBook,
-                accent = CromaAccents.Blue,
+                accent = CromaAccents.Maroon,
                 onClick = { viewModel.setSessionType(SessionTypeEntity.CLASS); onNext() },
             )
             DashboardCard(
@@ -49,7 +49,7 @@ fun ChooseTimetableTypeScreen(viewModel: CreateTimetableViewModel, onBack: () ->
                 title = SessionTypeEntity.LAB.label(),
                 subtitle = "Requires a lab-type room",
                 icon = Icons.Filled.Science,
-                accent = CromaAccents.Mint,
+                accent = CromaAccents.MaroonLight,
                 onClick = { viewModel.setSessionType(SessionTypeEntity.LAB); onNext() },
             )
         }
