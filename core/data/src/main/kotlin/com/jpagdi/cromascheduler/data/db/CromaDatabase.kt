@@ -34,7 +34,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 6, // bumped: dropped period_config/timeslots tables, schedule_runs gained periodBlocksEncoded/activeDaysEncoded (see MIGRATION_5_6 below)
+    version = 7, // bumped: schedule_runs gained rootRunId (see MIGRATION_6_7 below)
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -120,6 +120,19 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 }
 
 /**
+ * v6 -> v7: schedule_runs gained rootRunId. Existing rows all default to NULL, i.e. every
+ * pre-existing run is treated as its own root — correct, since before this there was no lineage
+ * concept at all and every run (including old repair/optimize output) was already its own flat
+ * Home entry. Only runs created by repair()/optimize() AFTER this migration get a non-null
+ * rootRunId pointing at their lineage's original Generate run.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE schedule_runs ADD COLUMN rootRunId TEXT DEFAULT NULL")
+    }
+}
+
+/**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
  * function instead of touching Room directly, which is also what was actually
@@ -131,5 +144,5 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
 )
-    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
     .build()

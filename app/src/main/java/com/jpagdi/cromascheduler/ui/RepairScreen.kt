@@ -71,15 +71,38 @@ fun RepairScreen(runId: String, onBack: () -> Unit, onOptimize: (runId: String) 
                     if (viewModel.operationState is OperationUiState.Running) {
                         LoadingRow("Checking current conflicts…")
                     } else if (originalViolations.isEmpty() && viewModel.operationState is OperationUiState.ValidateDone) {
-                        Text("No conflicts found — nothing to repair.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Text("No conflicts found — nothing to repair.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp))
+                        }
                     } else if (originalViolations.isNotEmpty()) {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text(
                                     "${originalViolations.size} conflict(s) found. Repair preserves every session that's already valid and only recalculates the ones involved in a conflict.",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
-                                Button(onClick = { stage = RepairStage.REPAIRING; viewModel.repair(runId, "dsatur") }, modifier = Modifier.fillMaxWidth()) {
+                                Button(
+                                    onClick = { stage = RepairStage.REPAIRING; viewModel.repair(runId, "dsatur") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError,
+                                    ),
+                                ) {
                                     Text("Repair Now")
                                 }
                             }
@@ -91,12 +114,18 @@ fun RepairScreen(runId: String, onBack: () -> Unit, onOptimize: (runId: String) 
                 RepairStage.RE_VALIDATING -> LoadingRow("Re-validating the repaired schedule…")
                 RepairStage.RESULT -> {
                     val clean = finalViolations.isEmpty()
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (clean) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            contentColor = if (clean) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 if (clean) "Repaired — 0 conflicts remaining" else "Repaired — ${finalViolations.size} conflict(s) remain",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = if (clean) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             )
                             Text(
                                 "Before: ${originalViolations.size} conflict(s)  →  After: ${finalViolations.size} conflict(s)",

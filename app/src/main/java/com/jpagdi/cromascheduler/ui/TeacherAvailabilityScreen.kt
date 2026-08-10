@@ -44,7 +44,11 @@ fun TeacherAvailabilityScreen(teacherId: String, teacherName: String, onBack: ()
                 style = MaterialTheme.typography.bodySmall,
             )
 
-            androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
+            androidx.compose.material3.Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
                 LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 item {
                     Row(modifier = Modifier.fillMaxWidth()) {

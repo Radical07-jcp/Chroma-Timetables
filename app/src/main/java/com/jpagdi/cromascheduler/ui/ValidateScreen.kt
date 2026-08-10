@@ -38,13 +38,32 @@ fun ValidateScreen(runId: String, onBack: () -> Unit, onRepair: (runId: String) 
                 }
                 is OperationUiState.Failed -> Text(state.message, color = MaterialTheme.colorScheme.error)
                 is OperationUiState.ValidateDone -> {
-                    if (state.violations.isEmpty()) {
-                        Text("No conflicts found — this schedule is valid.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Text("${state.violations.size} conflict(s) found", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
-                        Button(onClick = { onRepair(runId) }) { Text("Repair now") }
-                        ViolationList(state.violations)
+                    val clean = state.violations.isEmpty()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (clean) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            contentColor = if (clean) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                if (clean) "No conflicts found — this schedule is valid." else "${state.violations.size} conflict(s) found",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            if (!clean) {
+                                Button(
+                                    onClick = { onRepair(runId) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError,
+                                    ),
+                                ) { Text("Repair now") }
+                            }
+                        }
                     }
+                    if (!clean) ViolationList(state.violations)
                 }
                 else -> Unit
             }

@@ -52,25 +52,45 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
         ) {
             when {
                 sessionCount == 0 -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("No ${sessionType.label().lowercase()} data yet", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "Import teachers, subjects, rooms, sections, and sessions for this type before generating.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            Button(onClick = onImportData, modifier = Modifier.fillMaxWidth()) { Text("Import Data") }
+                            Button(
+                                onClick = onImportData,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError,
+                                ),
+                            ) { Text("Import Data") }
                         }
                     }
                 }
                 generatedRunId != null -> {
                     val clean = conflictCount == 0
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (clean) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            contentColor = if (clean) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 if (clean) "Generated — automatically validated, 0 conflicts" else "Generated — automatically validated, ${conflictCount ?: 0} conflict(s) found",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = if (clean) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             )
                             if (!clean) {
                                 Text(
@@ -83,7 +103,11 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
                     Button(onClick = { onDone(generatedRunId!!) }, modifier = Modifier.fillMaxWidth()) { Text("Done") }
                 }
                 else -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             OutlinedTextField(
                                 value = name,

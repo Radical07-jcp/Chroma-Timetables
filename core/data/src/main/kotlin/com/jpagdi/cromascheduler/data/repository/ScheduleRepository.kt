@@ -236,6 +236,9 @@ class ScheduleRepository(private val database: CromaDatabase) {
             sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
             periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
             activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
+            // sourceRun's OWN rootRunId if it's already history, else sourceRun IS the root —
+            // keeps every lineage flat at one level no matter how many repairs deep this is.
+            rootRunId = sourceRun?.rootRunId ?: sourceRunId,
         )
         persistRun(run, result.assignments, result.roomBySession, result.remainingViolations)
         return runId
@@ -280,10 +283,17 @@ class ScheduleRepository(private val database: CromaDatabase) {
             sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
             periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
             activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
+            rootRunId = sourceRun?.rootRunId ?: sourceRunId,
         )
         persistRun(run, result.assignments, result.roomBySession, violations)
         return runId
     }
+
+    /** Home's list — one card per lineage. */
+    suspend fun getRootRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAllRoots()
+
+    /** A lineage's full history (root + every repair/optimize on it), oldest first — what Timetable Detail scrolls through. */
+    suspend fun getLineage(rootRunId: String): List<ScheduleRunEntity> = database.scheduleRunDao().getLineage(rootRunId)
 
     suspend fun getRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAll()
 
@@ -298,9 +308,21 @@ class ScheduleRepository(private val database: CromaDatabase) {
     suspend fun getConflictCountsByRun(): Map<String, Int> =
         database.scheduleRunDao().getConflictCountsByRun().associate { it.scheduleRunId to it.conflictCount }
 
-    /** Deletes a run and everything scoped to it (assignments, conflict records) — never touches the shared teacher/subject/room/session data those assignments point at. */
+    /**
+     * Deletes a run and everything scoped to it (assignments, conflict records) — never touches
+     * the shared teacher/subject/room/session data those assignments point at. If [runId] is a
+     * lineage ROOT, every Validate/Repair/Optimize entry built on top of it is deleted too, so
+     * "Delete Timetable" removes the whole history shown on the detail screen, not just the
+     * original Generate run while its later entries silently orphan in the database.
+     */
     suspend fun deleteRun(runId: String) {
         database.withTransaction {
+            val children = database.scheduleRunDao().getLineage(runId).filter { it.id != runId }
+            for (child in children) {
+                database.scheduleRunDao().deleteAssignmentsFor(child.id)
+                database.scheduleRunDao().deleteConflictsFor(child.id)
+                database.scheduleRunDao().deleteRun(child.id)
+            }
             database.scheduleRunDao().deleteAssignmentsFor(runId)
             database.scheduleRunDao().deleteConflictsFor(runId)
             database.scheduleRunDao().deleteRun(runId)

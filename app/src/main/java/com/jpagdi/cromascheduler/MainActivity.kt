@@ -80,7 +80,6 @@ private fun CromaApp(
                 onThemeModeChange = onThemeModeChange,
                 actions = SidebarActions(
                     onHome = { closeDrawerThen { navController.navigate(CromaRoutes.HOME) { popUpTo(CromaRoutes.HOME) { inclusive = true } } } },
-                    onTeachers = { closeDrawerThen { navController.navigate(CromaRoutes.TEACHERS) } },
                     onRepair = {
                         closeDrawerThen {
                             repairWizard.reset()
@@ -174,10 +173,9 @@ private fun CromaApp(
                 TimetableDetailScreen(
                     runId = runId,
                     onBack = { navController.popBackStack() },
-                    onValidate = { navController.navigate(CromaRoutes.validate(runId)) },
-                    onOptimize = { navController.navigate(CromaRoutes.optimize(runId)) },
                     onResults = { navController.navigate(CromaRoutes.results(runId)) },
                     onExport = { rId, runName -> navController.navigate(CromaRoutes.export(rId, runName)) },
+                    onTeachers = { navController.navigate(CromaRoutes.TEACHERS) },
                     onDeleted = { navController.popBackStack(CromaRoutes.HOME, inclusive = false) },
                 )
             }

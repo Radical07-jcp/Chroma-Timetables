@@ -40,7 +40,7 @@ import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
 fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = CromaColors.Navy) {
     Surface(color = accent) {
         Row(
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {

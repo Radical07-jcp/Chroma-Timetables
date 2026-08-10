@@ -38,7 +38,13 @@ fun HomeScreen(onOpenDrawer: () -> Unit, onOpenTimetable: (runId: String) -> Uni
     Scaffold(
         topBar = { CromaHomeHeader(onOpenDrawer) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onCreateTimetable, icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) }, text = { Text("New Timetable") })
+            ExtendedFloatingActionButton(
+                onClick = onCreateTimetable,
+                icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
+                text = { Text("New Timetable") },
+                containerColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Gold,
+                contentColor = com.jpagdi.cromascheduler.designsystem.CromaColors.Navy,
+            )
         },
     ) { padding ->
         if (!viewModel.loaded) {
@@ -68,7 +74,13 @@ fun HomeScreen(onOpenDrawer: () -> Unit, onOpenTimetable: (runId: String) -> Uni
 @Composable
 private fun TimetableRowCard(row: TimetableRow, onClick: () -> Unit) {
     val run = row.run
-    Card(onClick = onClick, shape = CromaShapes.medium, modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        shape = CromaShapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {

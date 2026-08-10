@@ -21,9 +21,15 @@ class HomeViewModel(private val repository: ScheduleRepository) : ViewModel() {
 
     fun load() {
         viewModelScope.launch {
-            val runs = repository.getRuns().sortedByDescending { it.createdAtEpochMillis }
+            val roots = repository.getRootRuns()
             val conflictCounts = repository.getConflictCountsByRun()
-            rows = runs.map { TimetableRow(it, conflictCounts[it.id] ?: 0) }
+            rows = roots.map { root ->
+                // The card's status pill reflects the lineage's LATEST entry (last repair/optimize),
+                // since that's the timetable a person would actually act on next — not the original
+                // Generate run, which may have been conflicting and long since repaired.
+                val latest = repository.getLineage(root.id).maxByOrNull { it.createdAtEpochMillis } ?: root
+                TimetableRow(root, conflictCounts[latest.id] ?: 0)
+            }
             loaded = true
         }
     }

@@ -49,7 +49,11 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(onClick = { zipLauncher.launch("application/zip") }) { Text("Choose zip") }
@@ -71,7 +75,14 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit) {
 
             val doneState = viewModel.uiState as? ImportUiState.Done
             if (doneState != null) {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                ) {
                     Box(modifier = Modifier.padding(16.dp)) { ImportResultView(doneState) }
                 }
             }

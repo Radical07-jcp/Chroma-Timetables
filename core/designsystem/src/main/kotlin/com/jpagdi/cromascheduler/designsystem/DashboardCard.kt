@@ -1,7 +1,6 @@
 package com.jpagdi.cromascheduler.designsystem
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,8 +35,7 @@ fun DashboardCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(CromaShapes.medium)
-            .background(MaterialTheme.colorScheme.surface, CromaShapes.medium)
-            .border(1.dp, MaterialTheme.colorScheme.outline, CromaShapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CromaShapes.medium)
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,

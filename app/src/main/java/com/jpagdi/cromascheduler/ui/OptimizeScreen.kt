@@ -53,14 +53,28 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
         ) {
             when (stage) {
                 OptimizeStage.READY -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Improve schedule quality", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "Reduces teacher idle time, room changes, and gaps in section schedules, and favors morning slots where possible — without ever violating a hard constraint. Produces a new saved timetable; this one stays untouched.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            Button(onClick = { stage = OptimizeStage.OPTIMIZING; viewModel.optimize(runId) }, modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = { stage = OptimizeStage.OPTIMIZING; viewModel.optimize(runId) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiary,
+                                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                                ),
+                            ) {
                                 Text("Optimize Now")
                             }
                         }
@@ -70,12 +84,18 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
                 OptimizeStage.RE_VALIDATING -> LoadingLine("Re-validating the optimized schedule…")
                 OptimizeStage.RESULT -> {
                     val clean = finalViolations.isEmpty()
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (clean) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            contentColor = if (clean) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 if (clean) "Optimized — re-validated, 0 conflicts" else "Optimized — re-validated, ${finalViolations.size} conflict(s)",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = if (clean) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             )
                         }
                     }

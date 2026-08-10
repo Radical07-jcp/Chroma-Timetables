@@ -150,6 +150,10 @@ data class ScheduleRunEntity(
     val sessionType: SessionTypeEntity = SessionTypeEntity.CLASS,
     val periodBlocksEncoded: String = "",
     val activeDaysEncoded: String = "",
+    // Null on the original Generate run (the root). Repair/Optimize point at the ROOT run's id
+    // (not their immediate source), so the whole lineage is a flat one-level group under one
+    // Home card regardless of how many repair/optimize passes happen — no recursive parent chase.
+    val rootRunId: String? = null,
 )
 
 @Entity(

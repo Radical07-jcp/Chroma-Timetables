@@ -70,9 +70,16 @@ fun ExportScreen(runId: String, runName: String, onBack: () -> Unit) {
                 val uri = FileProvider.getUriForFile(context, authority, file)
                 val isPdf = file.extension == "pdf"
 
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Ready: ${file.name}", color = MaterialTheme.colorScheme.primary)
+                        Text("Ready: ${file.name}", style = MaterialTheme.typography.titleSmall)
 
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(onClick = {

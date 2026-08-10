@@ -8,7 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
@@ -24,7 +23,6 @@ import com.jpagdi.cromascheduler.designsystem.ThemeMode
 
 data class SidebarActions(
     val onHome: () -> Unit,
-    val onTeachers: () -> Unit,
     val onRepair: () -> Unit,
     val onSettings: () -> Unit,
     val onAbout: () -> Unit,
@@ -35,10 +33,12 @@ data class SidebarActions(
  * behavior and opens from the START edge (left, in an LTR layout) by default.
  *
  * No "Define Periods" row anymore — periods are per-timetable now, chosen during creation, not a
- * standalone global setting there'd be anything to edit here. Settings and About are two separate
- * rows: Settings is meant to grow (default algorithm today, more later), About is meant to stay a
- * static page — folding them together would mean either an ever-growing About page or an
- * oddly-named Settings page with one static paragraph in it.
+ * standalone global setting there'd be anything to edit here. No "Teachers" row either — teacher
+ * data now lives inside each timetable's own bottom nav (via TimetableDetailScreen), since a
+ * global unscoped Teachers screen couldn't show a teacher's time slots for any specific schedule.
+ * Settings and About are two separate rows: Settings is meant to grow (default algorithm today,
+ * more later), About is meant to stay a static page — folding them together would mean either an
+ * ever-growing About page or an oddly-named Settings page with one static paragraph in it.
  */
 @Composable
 fun SidebarDrawer(
@@ -68,9 +68,6 @@ fun SidebarDrawer(
                 SidebarSectionHeader("SCHEDULING")
                 SidebarRow("Timetables", Icons.Filled.Home, actions.onHome)
                 SidebarRow("Repair a Schedule", Icons.Filled.Build, actions.onRepair)
-
-                SidebarSectionHeader("DATA")
-                SidebarRow("Teachers", Icons.Filled.Groups, actions.onTeachers)
 
                 SidebarSectionHeader("PREFERENCES")
                 ThemePill(currentThemeMode, onThemeModeChange)

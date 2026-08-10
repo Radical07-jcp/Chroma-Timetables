@@ -1,8 +1,16 @@
 package com.jpagdi.cromascheduler.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarViewWeek
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,24 +26,30 @@ import com.jpagdi.cromascheduler.data.entity.PeriodBlock
 import com.jpagdi.cromascheduler.designsystem.CromaStatus
 import com.jpagdi.cromascheduler.designsystem.StatusPill
 import com.jpagdi.cromascheduler.di.LocalAppContainer
+import com.jpagdi.cromascheduler.viewmodel.LineageEntry
 import com.jpagdi.cromascheduler.viewmodel.TimetableDetailViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * One generated Timetable's detail page — Import/Generate don't live here anymore (those only
- * happen once, at creation time, via the New Timetable wizard); this is Validate / Optimize /
- * View / Export / Delete for a run that already exists.
+ * One TIMETABLE's whole lineage, scrollable — the original Generate run plus every Validate /
+ * Repair / Optimize built from it render as entries in one timeline here, instead of Validate or
+ * Optimize spawning a separate Home card each time (that was the actual bug: "(optimized)
+ * (optimized) (optimized)" cluttering Home when it's really one timetable's history).
+ *
+ * Teachers / Validate / Optimize / Export live in the bottom bar and act on [viewModel.latest] —
+ * the most recent entry — since that's what "this timetable" means once history exists. Export
+ * still needs to know WHICH entry, so its bottom-bar action opens a picker over [entries] rather
+ * than assuming latest is always what someone wants to hand out.
  */
 @Composable
 fun TimetableDetailScreen(
     runId: String,
     onBack: () -> Unit,
-    onValidate: (runId: String) -> Unit,
-    onOptimize: (runId: String) -> Unit,
     onResults: (runId: String) -> Unit,
     onExport: (runId: String, runName: String) -> Unit,
+    onTeachers: () -> Unit,
     onDeleted: () -> Unit,
 ) {
     val container = LocalAppContainer.current
@@ -44,51 +58,75 @@ fun TimetableDetailScreen(
     LaunchedEffect(viewModel.deleted) { if (viewModel.deleted) onDeleted() }
 
     var confirmDelete by remember { mutableStateOf(false) }
-    val run = viewModel.run
+    var showExportPicker by remember { mutableStateOf(false) }
+    val root = viewModel.root
 
-    Scaffold(topBar = { CromaTopBar(run?.name ?: "Timetable", onBack) }) { padding ->
-        if (!viewModel.loaded || run == null) {
+    Scaffold(
+        topBar = { CromaTopBar(root?.name ?: "Timetable", onBack) },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onTeachers,
+                    icon = { Icon(Icons.Filled.Groups, contentDescription = null) },
+                    label = { Text("Teachers") },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = !viewModel.busy && viewModel.latest != null,
+                    onClick = viewModel::validateLatest,
+                    icon = { Icon(Icons.Filled.CheckCircle, contentDescription = null) },
+                    label = { Text("Validate") },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = !viewModel.busy && viewModel.latest != null,
+                    onClick = viewModel::optimizeLatest,
+                    icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
+                    label = { Text("Optimize") },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = viewModel.entries.isNotEmpty(),
+                    onClick = { showExportPicker = true },
+                    icon = { Icon(Icons.Filled.Download, contentDescription = null) },
+                    label = { Text("Export") },
+                )
+            }
+        },
+    ) { padding ->
+        if (!viewModel.loaded || root == null) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             return@Scaffold
         }
 
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(run.sessionType.label(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(PeriodBlock.decodeList(run.periodBlocksEncoded).summary(), style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        "${run.algorithmUsed} • ${SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault()).format(Date(run.createdAtEpochMillis))}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(root.sessionType.label(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(PeriodBlock.decodeList(root.periodBlocksEncoded).summary(), style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (viewModel.busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
-                if (viewModel.conflictCount > 0) StatusPill("${viewModel.conflictCount} CONFLICTS", CromaStatus.Conflicts)
-                else StatusPill("CLEAN", CromaStatus.Clean)
             }
 
-            Button(onClick = { onResults(run.id) }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.CalendarViewWeek, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("View Timetable")
+            items(viewModel.entries) { entry ->
+                LineageEntryCard(entry = entry, onView = { onResults(entry.run.id) })
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { onValidate(run.id) }, modifier = Modifier.weight(1f)) { Text("Validate") }
-                OutlinedButton(onClick = { onOptimize(run.id) }, modifier = Modifier.weight(1f)) { Text("Optimize") }
-                OutlinedButton(onClick = { onExport(run.id, run.name) }, modifier = Modifier.weight(1f)) { Text("Export") }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            OutlinedButton(
-                onClick = { confirmDelete = true },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Delete Timetable")
+            item {
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Delete Timetable")
+                }
             }
         }
     }
@@ -97,9 +135,63 @@ fun TimetableDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this timetable?") },
-            text = { Text("This removes the generated schedule and its conflict history. Imported teacher/subject/room/session data is not affected.") },
+            text = { Text("This removes the generated schedule AND its full Validate/Repair/Optimize history. Imported teacher/subject/room/session data is not affected.") },
             confirmButton = { TextButton(onClick = { viewModel.delete(); confirmDelete = false }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
+    }
+
+    if (showExportPicker) {
+        AlertDialog(
+            onDismissRequest = { showExportPicker = false },
+            title = { Text("Export which version?") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    viewModel.entries.reversed().forEach { entry ->
+                        TextButton(
+                            onClick = {
+                                showExportPicker = false
+                                onExport(entry.run.id, entry.run.name)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(entry.run.name, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showExportPicker = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit) {
+    val run = entry.run
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onView,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(run.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                if (entry.conflictCount > 0) StatusPill("${entry.conflictCount} CONFLICTS", CromaStatus.Conflicts)
+                else StatusPill("CLEAN", CromaStatus.Clean)
+            }
+            Text(
+                "${run.algorithmUsed} • ${SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault()).format(Date(run.createdAtEpochMillis))}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onView) {
+                Icon(Icons.Filled.CalendarViewWeek, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("View Timetable")
+            }
+        }
     }
 }

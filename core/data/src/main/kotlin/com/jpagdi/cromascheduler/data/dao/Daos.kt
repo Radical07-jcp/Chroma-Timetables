@@ -92,6 +92,14 @@ interface ScheduleRunDao {
     @Query("SELECT * FROM schedule_runs ORDER BY createdAtEpochMillis DESC")
     suspend fun getAll(): List<ScheduleRunEntity>
 
+    /** Home's list — one row per lineage (roots only). rootRunId IS NULL means "this run IS the root". */
+    @Query("SELECT * FROM schedule_runs WHERE rootRunId IS NULL ORDER BY createdAtEpochMillis DESC")
+    suspend fun getAllRoots(): List<ScheduleRunEntity>
+
+    /** Everything under one lineage — the root itself plus every repair/optimize built from it, oldest first (a readable history order). */
+    @Query("SELECT * FROM schedule_runs WHERE id = :rootRunId OR rootRunId = :rootRunId ORDER BY createdAtEpochMillis ASC")
+    suspend fun getLineage(rootRunId: String): List<ScheduleRunEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAssignments(assignments: List<ScheduleAssignmentEntity>)
 

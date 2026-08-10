@@ -64,7 +64,11 @@ fun DefineTimetablePeriodsScreen(viewModel: CreateTimetableViewModel, onBack: ()
                 Text("Add Block")
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Active days", style = MaterialTheme.typography.titleSmall)
                     val activeSet = activeDays.toSet()
@@ -124,7 +128,11 @@ private fun BlockEditor(block: PeriodBlock, canRemove: Boolean, onChange: (Perio
 
     fun currentStartMinutes() = (startHourText.toIntOrNull() ?: 0) * 60 + (startMinuteText.toIntOrNull() ?: 0)
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
