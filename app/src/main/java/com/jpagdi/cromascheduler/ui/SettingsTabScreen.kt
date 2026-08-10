@@ -21,7 +21,7 @@ fun SettingsTabScreen(onBack: () -> Unit, onDefinePeriods: () -> Unit) {
                 title = "Define Periods",
                 subtitle = "Period length, periods per day, active days",
                 icon = Icons.Filled.CalendarMonth,
-                accent = CromaAccents.Blue,
+                accent = CromaAccents.Gold,
                 onClick = onDefinePeriods,
             )
 
