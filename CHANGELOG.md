@@ -1,5 +1,14 @@
 # Chroma Engine Changelog
 
+## v1.0.1 — In-App Logo & Visual Polish
+
+### Changed
+- Replaced the in-app Chroma logo with the new transparent-background artwork.
+- Added a theme-aware contrasting shadow/halo behind the in-app logo for improved visibility across Light, Dark, and Black themes.
+- Preserved the gold-background launcher icon unchanged.
+- Kept the logo shadow as UI styling rather than baking it into the logo asset.
+
+
 This changelog records the changes made from the supplied **base ZIP (treated as Chroma Engine v0.0.0)** to the current **Chroma Engine v1.0.0** working baseline.
 
 ## [1.0.0] — Initial Stable Chroma Engine Release
