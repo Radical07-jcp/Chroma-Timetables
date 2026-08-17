@@ -2,7 +2,6 @@ package com.jpagdi.cromascheduler.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,11 +28,8 @@ fun AboutScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .size(220.dp)
                     .drawBehind {
-                        val shape = RoundedCornerShape(30.dp)
-                        val outline = shape.createOutline(size, layoutDirection, this)
                         // A theme-aware ambient/offset shadow keeps the transparent logo readable
                         // on both light and dark/black surfaces without touching the launcher icon.
-                        drawOutline(outline, shadowColor.copy(alpha = 0.10f), style = androidx.compose.ui.graphics.drawscope.Fill)
                         drawRoundRect(
                             color = shadowColor.copy(alpha = 0.08f),
                             topLeft = androidx.compose.ui.geometry.Offset(7.dp.toPx(), 9.dp.toPx()),
