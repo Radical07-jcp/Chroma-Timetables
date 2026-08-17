@@ -78,8 +78,13 @@ private fun CromaApp(
     val repairWizard: CreateTimetableViewModel = viewModel(key = "repairWizard")
 
     fun closeDrawerThen(action: () -> Unit) {
-        scope.launch { drawerState.close() }
-        action()
+        // Navigation must wait for the drawer transition to finish. Navigating immediately while
+        // ModalNavigationDrawer is still settling can leave the window in a blank/frozen-looking
+        // state on some devices.
+        scope.launch {
+            drawerState.close()
+            action()
+        }
     }
 
     ModalNavigationDrawer(
@@ -90,6 +95,12 @@ private fun CromaApp(
                 onThemeModeChange = onThemeModeChange,
                 actions = SidebarActions(
                     onHome = { closeDrawerThen { navController.navigate(CromaRoutes.HOME) { popUpTo(CromaRoutes.HOME) { inclusive = true } } } },
+                    onNewTimetable = {
+                        closeDrawerThen {
+                            createWizard.reset()
+                            navController.navigate(CromaRoutes.CREATE_CHOOSE_TYPE)
+                        }
+                    },
                     onRepair = {
                         closeDrawerThen {
                             repairWizard.reset()
@@ -173,7 +184,11 @@ private fun CromaApp(
                 arguments = listOf(navArgument("type") { type = NavType.StringType }),
             ) { entry ->
                 val type = SessionTypeEntity.valueOf(entry.arguments!!.getString("type")!!)
-                ImportScreen(sessionType = type, onBack = { navController.popBackStack() })
+                ImportScreen(
+                    sessionType = type,
+                    onBack = { navController.popBackStack() },
+                    onImported = { navController.popBackStack() },
+                )
             }
             composable(
                 CromaRoutes.TIMETABLE_DETAIL,

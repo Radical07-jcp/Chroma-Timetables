@@ -1,23 +1,13 @@
 package com.jpagdi.cromascheduler.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,59 +22,77 @@ import com.jpagdi.cromascheduler.designsystem.PressStart2PFamily
 import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
 
 /**
- * One accent color across the WHOLE header row (icon + title, background included) — every
- * screen's header goes through this, rather than each screen picking its own title color against
- * a plain background. [accent] defaults to [LocalHeaderAccent] — the reference app's "Top Panel
- * Accent" / GroupA — so every screen matches, and stays live if that accent is ever changed in
- * Settings, unless there's a specific reason for a screen to override it.
+ * Modern app chrome shared by the whole application. Navigation, state and screen behavior remain
+ * outside this component; this is intentionally presentation-only.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = LocalHeaderAccent.current) {
-    Surface(color = accent) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-            }
-            Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White)
-        }
-    }
-}
-
-/**
- * Home's header — hamburger + logo + two-line CHROMA/TIMETABLES brand instead of back+title, but
- * the SAME accent-across-the-whole-row treatment as [CromaTopBar], so Home doesn't look like a
- * different app from every other screen.
- */
-@Composable
-fun CromaHomeHeader(onOpenDrawer: () -> Unit, accent: Color = LocalHeaderAccent.current) {
-    Surface(color = accent) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = Color.White)
-            }
-            Image(
-                painter = painterResource(R.drawable.logo_chroma),
-                contentDescription = null,
-                modifier = Modifier.size(30.dp).padding(start = 4.dp),
+    TopAppBar(
+        title = {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
             )
-            BrandWordmark(modifier = Modifier.padding(start = 12.dp))
-        }
-    }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+        ),
+        actions = {
+            Surface(
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(8.dp),
+                shape = MaterialTheme.shapes.small,
+                color = accent,
+            ) {}
+        },
+    )
 }
 
-/**
- * CHROMA / TIMETABLES, two lines, with the gap between them collapsed to just the line's own
- * leading rather than a full second line-height of empty space. Set in Press Start 2P (the
- * reference app's own 8-bit/arcade display font), scoped to exactly this composable — every other
- * Text in the app stays Montserrat via CromaTypography, same "just these two spots" scope the
- * reference app used this font with. 18sp/9sp matches that app's own header sizing exactly.
- */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CromaHomeHeader(
+    onOpenDrawer: () -> Unit,
+    accent: Color = LocalHeaderAccent.current,
+) {
+    CenterAlignedTopAppBar(
+        title = { BrandWordmark(color = MaterialTheme.colorScheme.onBackground) },
+        navigationIcon = {
+            FilledIconButton(
+                onClick = onOpenDrawer,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                modifier = Modifier.padding(start = 8.dp),
+            ) {
+                Icon(Icons.Filled.Menu, contentDescription = "Open menu")
+            }
+        },
+        actions = {
+            Surface(
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(10.dp),
+                shape = MaterialTheme.shapes.small,
+                color = accent,
+            ) {}
+        },
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+        ),
+    )
+}
+
 @Composable
 fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
     Column(modifier = modifier) {
@@ -92,31 +100,48 @@ fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
             "CHROMA",
             color = color,
             fontFamily = PressStart2PFamily,
-            fontSize = 18.sp,
-            lineHeight = 18.sp,
-            letterSpacing = 0.6.sp,
+            fontSize = 17.sp,
+            lineHeight = 17.sp,
+            letterSpacing = 0.5.sp,
         )
         Text(
             "TIMETABLES",
             color = color,
             fontFamily = PressStart2PFamily,
-            fontSize = 9.sp,
-            lineHeight = 9.sp,
-            letterSpacing = 1.5.sp,
-            modifier = Modifier.padding(top = 4.dp),
+            fontSize = 8.sp,
+            lineHeight = 8.sp,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(top = 3.dp),
         )
     }
 }
 
-/** Shared by Validate and Repair so a conflict reads identically in both places. */
 @Composable
 fun ViolationList(violations: List<ConstraintViolation>) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(vertical = 4.dp),
+    ) {
         items(violations) { violation ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(violation.type.name.replace('_', ' '), style = MaterialTheme.typography.titleSmall)
-                    Text(violation.message, style = MaterialTheme.typography.bodySmall)
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text(
+                        violation.type.name.replace('_', ' '),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        violation.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

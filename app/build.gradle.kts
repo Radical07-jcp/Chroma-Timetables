@@ -12,7 +12,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0" // Phase 1: architecture skeleton, not yet a usable app
+        versionName = "1.0.0" // Initial stable Chroma Engine release
     }
 
     buildFeatures {

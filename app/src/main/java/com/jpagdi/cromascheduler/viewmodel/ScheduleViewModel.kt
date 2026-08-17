@@ -25,7 +25,7 @@ sealed class OperationUiState {
     data class GenerateDone(val runId: String) : OperationUiState()
     data class ValidateDone(val violations: List<ConstraintViolation>) : OperationUiState()
     data class RepairDone(val newRunId: String) : OperationUiState()
-    data class OptimizeDone(val newRunId: String) : OperationUiState()
+    data class OptimizeDone(val outcome: ScheduleRepository.OptimizationOutcome) : OperationUiState()
     /** The standalone Repair feature's upload step lands here — already validated (see ScheduleRepository.importExistingSchedule), so the Repair-upload screen can go straight to showing conflicts without a second round trip. */
     data class ImportedForRepair(val runId: String, val violations: List<ConstraintViolation>) : OperationUiState()
     data class Failed(val message: String) : OperationUiState()
@@ -89,11 +89,11 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
         }
     }
 
-    fun optimize(runId: String) {
+    fun optimize(runId: String, maxChanges: Int = 12) {
         operationState = OperationUiState.Running
         viewModelScope.launch {
-            runCatching { repository.optimize(runId) }
-                .onSuccess { newRunId -> operationState = OperationUiState.OptimizeDone(newRunId) }
+            runCatching { repository.optimize(runId, maxChanges = maxChanges) }
+                .onSuccess { outcome -> operationState = OperationUiState.OptimizeDone(outcome) }
                 .onFailure { e -> operationState = OperationUiState.Failed(e.message ?: "Optimize failed") }
         }
     }

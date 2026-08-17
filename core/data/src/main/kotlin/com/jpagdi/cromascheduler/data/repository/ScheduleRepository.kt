@@ -244,8 +244,19 @@ class ScheduleRepository(private val database: CromaDatabase) {
         return runId
     }
 
-    /** Optimize Existing Schedule — also produces a new run, same reasoning as repair(). */
-    suspend fun optimize(sourceRunId: String, maxPasses: Int = 3): String {
+    data class OptimizationOutcome(
+        val runId: String,
+        val changes: Int,
+        val swaps: Int,
+        val violationsBefore: Int,
+        val violationsAfter: Int,
+        val beforeScore: Double,
+        val afterScore: Double,
+    )
+
+    /** Optimize Existing Schedule — local repair first, quality improvement second.
+     * The source run is never mutated; the result is a new version in the same lineage. */
+    suspend fun optimize(sourceRunId: String, maxPasses: Int = 3, maxChanges: Int = 12): OptimizationOutcome {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
         val input = buildSchedulingInput(sourceRun?.let(::timeslotsFor).orEmpty()) { it.type == (sourceRun?.sessionType ?: SessionTypeEntity.CLASS) }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(sourceRunId)
@@ -255,7 +266,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
 
         val startTime = System.currentTimeMillis()
         val result: OptimizationResult = ScheduleOptimizer.optimize(
-            input, assignments, roomBySession, input.rooms.size, totalDefinedPeriods, maxPasses,
+            input, assignments, roomBySession, input.rooms.size, totalDefinedPeriods, maxPasses, maxChanges,
         )
         val elapsed = System.currentTimeMillis() - startTime
 
@@ -286,7 +297,15 @@ class ScheduleRepository(private val database: CromaDatabase) {
             rootRunId = sourceRun?.rootRunId ?: sourceRunId,
         )
         persistRun(run, result.assignments, result.roomBySession, violations)
-        return runId
+        return OptimizationOutcome(
+            runId = runId,
+            changes = result.changes.size,
+            swaps = result.swaps,
+            violationsBefore = result.violationsBefore,
+            violationsAfter = result.violationsAfter,
+            beforeScore = result.before.totalScore,
+            afterScore = result.after.totalScore,
+        )
     }
 
     /** Home's list — one card per lineage. */

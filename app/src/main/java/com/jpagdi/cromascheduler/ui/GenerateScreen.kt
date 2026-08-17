@@ -3,6 +3,10 @@ package com.jpagdi.cromascheduler.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -12,6 +16,7 @@ import com.jpagdi.cromascheduler.viewmodel.OperationUiState
 import com.jpagdi.cromascheduler.viewmodel.ScheduleViewModel
 import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 
 /**
  * Step 3 of the New Timetable wizard — type (step 1) and periods (step 2) are already decided and
@@ -31,10 +36,26 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
     var sessionCount by remember { mutableStateOf<Int?>(null) }
     var generatedRunId by remember { mutableStateOf<String?>(null) }
     var conflictCount by remember { mutableStateOf<Int?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         sessionCount = container.scheduleRepository.sessionCountFor(sessionType)
         algorithm = container.appPreferencesStore.defaultAlgorithmName.firstOrNull()
+    }
+
+    DisposableEffect(lifecycleOwner, sessionType) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // ImportScreen writes directly to the repository. Refresh when returning so the
+                // Generate button becomes available immediately after a successful import.
+                scope.launch {
+                    sessionCount = container.scheduleRepository.sessionCountFor(sessionType)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(viewModel.operationState) {

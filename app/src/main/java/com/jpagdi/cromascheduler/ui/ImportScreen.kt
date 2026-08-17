@@ -27,7 +27,7 @@ import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
  * CsvImportService still enforces it row-by-row against sessions.csv's own `type` column underneath.
  */
 @Composable
-fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit) {
+fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported: () -> Unit) {
     val container = LocalAppContainer.current
     val viewModel: ImportViewModel = viewModel(factory = ViewModelFactory(container))
     val context = LocalContext.current
@@ -83,7 +83,20 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit) {
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
-                    Box(modifier = Modifier.padding(16.dp)) { ImportResultView(doneState) }
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        ImportResultView(doneState)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.18f))
+                        Text(
+                            "The imported data is saved locally. Continue to the generation step to build the timetable.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Button(
+                            onClick = onImported,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Continue to Generate")
+                        }
+                    }
                 }
             }
         }

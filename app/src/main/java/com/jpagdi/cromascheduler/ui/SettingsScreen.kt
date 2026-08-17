@@ -1,18 +1,13 @@
 package com.jpagdi.cromascheduler.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -20,83 +15,133 @@ import com.jpagdi.cromascheduler.di.LocalAppContainer
 import com.jpagdi.cromascheduler.viewmodel.AccentColorViewModel
 import com.jpagdi.cromascheduler.viewmodel.SettingsViewModel
 
-/**
- * Default coloring algorithm — the "initial entry" the sidebar's Settings button was specifically
- * asked to open on — plus the two accent-group pickers (Top Panel / Button), ported from the
- * reference app's own Settings-adjacent accent controls. Its own screen, not folded into About,
- * since Settings is meant to grow with more preferences while About stays a static page.
- */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onPickGroupA: () -> Unit, onPickGroupB: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onPickGroupA: () -> Unit,
+    onPickGroupB: () -> Unit,
+) {
     val container = LocalAppContainer.current
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container.appPreferencesStore))
     val current by viewModel.defaultAlgorithmName.collectAsState()
 
-    val accentViewModel: AccentColorViewModel = viewModel(factory = AccentColorViewModel.factory(container.appPreferencesStore))
+    val accentViewModel: AccentColorViewModel = viewModel(
+        factory = AccentColorViewModel.factory(container.appPreferencesStore),
+    )
     val groupA by accentViewModel.groupA.collectAsState()
     val groupB by accentViewModel.groupB.collectAsState()
 
     Scaffold(topBar = { CromaTopBar("Settings", onBack) }) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Default algorithm", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Used to pre-select the algorithm every time you generate a new timetable — you can still change it per-timetable.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+            Text(
+                "Personalize Chroma",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "Choose how schedules are generated and how the interface is accented.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            SettingsSection(title = "Chroma Engine") {
+                Text("v1.0.0", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Initial stable release. Includes deterministic generation, validation, repair, local optimization, " +
+                        "ZIP/CSV import, and timetable export.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("Developed by Sir_JPagdi", style = MaterialTheme.typography.labelMedium)
+            }
+
+            SettingsSection(title = "Scheduling") {
+                Text("Default algorithm", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Used as the starting choice for every new timetable. You can still change it for an individual schedule.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                viewModel.algorithmNames.forEach { name ->
+                    val selected = (current ?: "dsatur") == name
+                    ListItem(
+                        headlineContent = { Text(name) },
+                        leadingContent = {
+                            RadioButton(
+                                selected = selected,
+                                onClick = { viewModel.setDefaultAlgorithm(name) },
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ListItemDefaults.colors(
+                            containerColor = Color.Transparent,
+                        ),
                     )
-                    Spacer(Modifier.height(4.dp))
-                    viewModel.algorithmNames.forEach { name ->
-                        val selected = (current ?: "dsatur") == name
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            RadioButton(selected = selected, onClick = { viewModel.setDefaultAlgorithm(name) })
-                            Text(name)
-                        }
-                    }
                 }
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Accent colors", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Two independent accents: one for headers and panels, one for primary buttons.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    AccentRow("Top Panel Accent", groupA, onPickGroupA)
-                    AccentRow("Button Accent", groupB, onPickGroupB)
-                }
+            SettingsSection(title = "Accent colors") {
+                Text(
+                    "Two independent accents let you keep the interface expressive without changing the selected theme.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                AccentRow("Top panel", groupA, onPickGroupA)
+                AccentRow("Primary actions", groupB, onPickGroupB)
             }
         }
     }
 }
 
 @Composable
-private fun AccentRow(label: String, color: Color, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
-        Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.width(12.dp))
-        Text(label, modifier = Modifier.weight(1f))
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = {
+                Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                content()
+            },
+        )
     }
+}
+
+@Composable
+private fun AccentRow(label: String, color: Color, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
+        supportingContent = { Text("Tap to choose", style = MaterialTheme.typography.bodySmall) },
+        leadingContent = {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = color,
+            ) {}
+        },
+        trailingContent = {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Choose $label",
+            )
+        },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        tonalElevation = 0.dp,
+    )
+    // The actual clickable surface follows the same layout as the ListItem.
 }

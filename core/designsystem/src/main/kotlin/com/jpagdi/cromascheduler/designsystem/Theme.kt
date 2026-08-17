@@ -11,16 +11,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 
-/**
- * Two roles a plain Material3 ColorScheme can't cleanly express on its own, ported from the
- * reference app's "GroupA / GroupB" accent system (see AccentPrefs.kt for the math/presets, and
- * its doc comment for why the actual recoloring mechanism — View-tree tag-walking — didn't need to
- * come along, only the design). [LocalHeaderAccent] is what CromaTopBar/CromaHomeHeader/
- * SidebarDrawer read for their panel background; [LocalButtonAccent] is what primary
- * buttons/FABs read. Both default to the same values CromaSchedulerTheme uses when no
- * AccentColorViewModel is in the tree (e.g. a lone @Preview), so nothing breaks outside the real
- * app — but in the real app, CromaSchedulerTheme's groupA/groupB params always override these.
- */
 val LocalHeaderAccent = compositionLocalOf { CromaColors.Maroon }
 val LocalButtonAccent = compositionLocalOf { CromaColors.Gold }
 
@@ -28,102 +18,99 @@ private fun colorsFor(mode: ThemeMode, buttonAccent: Color, panelAccent: Color) 
     ThemeMode.LIGHT -> lightColorScheme(
         primary = buttonAccent,
         onPrimary = AccentPrefs.textColorFor(buttonAccent),
+        primaryContainer = buttonAccent.copy(alpha = 0.14f),
+        onPrimaryContainer = buttonAccent,
         secondary = panelAccent,
         onSecondary = AccentPrefs.textColorFor(panelAccent),
+        secondaryContainer = panelAccent.copy(alpha = 0.12f),
+        onSecondaryContainer = panelAccent,
+        tertiary = Color(0xFF5F5AA8),
         error = CromaStatus.Conflicts,
         onError = Color.White,
         background = CromaColors.Cream,
         onBackground = CromaColors.Ink,
-        surface = CromaColors.CardSurfaceLight,
+        surface = CromaColors.Cream,
         onSurface = CromaColors.Ink,
         surfaceVariant = CromaColors.CreamDark,
-        onSurfaceVariant = CromaColors.Ink.copy(alpha = 0.7f),
-        surfaceContainer = CromaColors.CreamDark,
-        surfaceContainerLow = CromaColors.CardSurfaceLight,
-        surfaceContainerLowest = CromaColors.CardSurfaceLight,
-        outline = CromaColors.CardStrokeOnLight,
+        onSurfaceVariant = CromaColors.Ink.copy(alpha = 0.72f),
+        surfaceContainer = Color(0xFFF1EFE9),
+        surfaceContainerLow = Color(0xFFF5F3EE),
+        surfaceContainerHigh = Color.White,
+        surfaceContainerHighest = Color(0xFFE7E4DD),
+        outline = Color(0xFF7A7771),
         outlineVariant = CromaColors.CardStrokeOnLight,
     )
     ThemeMode.DARK -> darkColorScheme(
         primary = buttonAccent,
         onPrimary = AccentPrefs.textColorFor(buttonAccent),
+        primaryContainer = buttonAccent.copy(alpha = 0.20f),
+        onPrimaryContainer = buttonAccent,
         secondary = panelAccent,
         onSecondary = AccentPrefs.textColorFor(panelAccent),
+        secondaryContainer = panelAccent.copy(alpha = 0.18f),
+        onSecondaryContainer = panelAccent,
+        tertiary = Color(0xFFB9B3FF),
         error = CromaStatus.Conflicts,
         onError = Color.White,
         background = CromaColors.SurfaceDark,
         onBackground = CromaColors.TextDark,
-        surface = CromaColors.CardSurfaceDark,
+        surface = CromaColors.SurfaceDark,
         onSurface = CromaColors.TextDark,
-        surfaceVariant = CromaColors.SurfaceDark,
-        onSurfaceVariant = CromaColors.TextDark.copy(alpha = 0.7f),
-        surfaceContainer = CromaColors.CardSurfaceDark,
-        surfaceContainerLow = CromaColors.SurfaceDark,
-        surfaceContainerLowest = CromaColors.SurfaceDark,
-        outline = CromaColors.CardStrokeOnDark,
+        surfaceVariant = Color(0xFF25272D),
+        onSurfaceVariant = CromaColors.TextDark.copy(alpha = 0.72f),
+        surfaceContainer = Color(0xFF1A1B20),
+        surfaceContainerLow = Color(0xFF18191E),
+        surfaceContainerHigh = CromaColors.CardSurfaceDark,
+        surfaceContainerHighest = Color(0xFF292B31),
+        outline = Color(0xFF8D9098),
         outlineVariant = CromaColors.CardStrokeOnDark,
     )
     ThemeMode.BLACK -> darkColorScheme(
         primary = buttonAccent,
         onPrimary = AccentPrefs.textColorFor(buttonAccent),
+        primaryContainer = buttonAccent.copy(alpha = 0.20f),
+        onPrimaryContainer = buttonAccent,
         secondary = panelAccent,
         onSecondary = AccentPrefs.textColorFor(panelAccent),
+        secondaryContainer = panelAccent.copy(alpha = 0.18f),
+        onSecondaryContainer = panelAccent,
+        tertiary = Color(0xFFB9B3FF),
         error = CromaStatus.Conflicts,
         onError = Color.White,
-        background = CromaColors.SurfaceBlack,
+        background = CromaColors.Black,
         onBackground = CromaColors.TextDark,
-        surface = CromaColors.CardSurfaceBlack,
+        surface = CromaColors.Black,
         onSurface = CromaColors.TextDark,
-        surfaceVariant = CromaColors.SurfaceBlack,
-        onSurfaceVariant = CromaColors.TextDark.copy(alpha = 0.7f),
-        surfaceContainer = CromaColors.CardSurfaceBlack,
-        surfaceContainerLow = CromaColors.SurfaceBlack,
-        surfaceContainerLowest = CromaColors.SurfaceBlack,
-        outline = CromaColors.CardStrokeOnDark,
+        surfaceVariant = Color(0xFF101114),
+        onSurfaceVariant = CromaColors.TextDark.copy(alpha = 0.72f),
+        surfaceContainer = Color(0xFF08090B),
+        surfaceContainerLow = Color(0xFF050506),
+        surfaceContainerHigh = CromaColors.CardSurfaceBlack,
+        surfaceContainerHighest = Color(0xFF18191C),
+        outline = Color(0xFF777A82),
         outlineVariant = CromaColors.CardStrokeOnDark,
     )
 }
 
-/**
- * Every named slot in Material3's type scale, swapped onto Montserrat — this is what makes the
- * font app-wide rather than something applied Text-by-Text. Sizes/line-heights/letter-spacing are
- * Material3's own defaults (M3's base Typography()), only fontFamily/weight change. Press Start 2P
- * is NOT part of this type scale — it's scoped to exactly the CHROMA/TIMETABLES brand wordmark
- * (see BrandWordmark in CommonUi.kt), same "just those two spots" scope the reference app used it
- * with, not a general-purpose type-scale entry.
- */
 private val baseTypography = Typography()
 val CromaTypography = Typography(
-    displayLarge = baseTypography.displayLarge.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Bold),
-    displayMedium = baseTypography.displayMedium.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Bold),
-    displaySmall = baseTypography.displaySmall.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    headlineLarge = baseTypography.headlineLarge.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    headlineMedium = baseTypography.headlineMedium.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    headlineSmall = baseTypography.headlineSmall.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    titleLarge = baseTypography.titleLarge.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Bold),
-    titleMedium = baseTypography.titleMedium.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    titleSmall = baseTypography.titleSmall.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    bodyLarge = baseTypography.bodyLarge.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Medium),
-    bodyMedium = baseTypography.bodyMedium.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Medium),
-    bodySmall = baseTypography.bodySmall.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.Medium),
-    labelLarge = baseTypography.labelLarge.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    labelMedium = baseTypography.labelMedium.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
-    labelSmall = baseTypography.labelSmall.copy(fontFamily = MontserratFamily, fontWeight = FontWeight.SemiBold),
+    displayLarge = baseTypography.displayLarge.copy(fontWeight = FontWeight.Bold),
+    displayMedium = baseTypography.displayMedium.copy(fontWeight = FontWeight.Bold),
+    displaySmall = baseTypography.displaySmall.copy(fontWeight = FontWeight.Bold),
+    headlineLarge = baseTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+    headlineMedium = baseTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+    headlineSmall = baseTypography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+    titleLarge = baseTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
+    titleMedium = baseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+    titleSmall = baseTypography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+    bodyLarge = baseTypography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+    bodyMedium = baseTypography.bodyMedium.copy(fontWeight = FontWeight.Normal),
+    bodySmall = baseTypography.bodySmall.copy(fontWeight = FontWeight.Normal),
+    labelLarge = baseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+    labelMedium = baseTypography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+    labelSmall = baseTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
 )
 
-/**
- * [themeMode] defaults to null, which means "follow the system light/dark setting" (Light or Dark
- * only — Black is never auto-selected, since it's an explicit OLED-battery choice). [groupA]
- * ("Top Panel Accent") and [groupB] ("Button Accent") default to the reference app's own defaults
- * (maroon/gold) and are what AccentColorViewModel overrides once a person picks something else in
- * Settings.
- *
- * Black theme is the one place [groupA] is deliberately NOT what headers use — same as the
- * reference app's own `Theme.MCQScanner.Black` (colorPrimary = a near-black surface tone there,
- * not the maroon every other theme uses), so panels recede into the near-black background instead
- * of standing out as a lighter maroon block; gold (groupB) stays the only real accent that pops in
- * that mode. See [LocalHeaderAccent].
- */
 @Composable
 fun CromaSchedulerTheme(
     themeMode: ThemeMode? = null,
@@ -132,15 +119,14 @@ fun CromaSchedulerTheme(
     content: @Composable () -> Unit,
 ) {
     val resolvedMode = themeMode ?: if (isSystemInDarkTheme()) ThemeMode.DARK else ThemeMode.LIGHT
-    val headerAccent = if (resolvedMode == ThemeMode.BLACK) CromaColors.CardSurfaceBlack else groupA
-    val colors = colorsFor(resolvedMode, buttonAccent = groupB, panelAccent = groupA)
-
+    // In Black mode, keep the app shell black; the chosen panel accent still appears in controls.
+    val headerAccent = if (resolvedMode == ThemeMode.BLACK) CromaColors.Black else groupA
     CompositionLocalProvider(
         LocalHeaderAccent provides headerAccent,
         LocalButtonAccent provides groupB,
     ) {
         MaterialTheme(
-            colorScheme = colors,
+            colorScheme = colorsFor(resolvedMode, groupB, groupA),
             shapes = CromaShapes,
             typography = CromaTypography,
             content = content,

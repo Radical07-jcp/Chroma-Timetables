@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -59,12 +61,20 @@ fun TimetableDetailScreen(
 
     var confirmDelete by remember { mutableStateOf(false) }
     var showExportPicker by remember { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
     val root = viewModel.root
 
     Scaffold(
         topBar = { CromaTopBar(root?.name ?: "Timetable", onBack) },
         bottomBar = {
             NavigationBar {
+                NavigationBarItem(
+                    selected = false,
+                    enabled = viewModel.latest != null,
+                    onClick = { viewModel.latest?.run?.id?.let(onResults) },
+                    icon = { Icon(Icons.Filled.Visibility, contentDescription = null) },
+                    label = { Text("Views") },
+                )
                 NavigationBarItem(
                     selected = false,
                     onClick = onTeachers,
@@ -87,10 +97,9 @@ fun TimetableDetailScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    enabled = viewModel.entries.isNotEmpty(),
-                    onClick = { showExportPicker = true },
-                    icon = { Icon(Icons.Filled.Download, contentDescription = null) },
-                    label = { Text("Export") },
+                    onClick = { showMore = true },
+                    icon = { Icon(Icons.Filled.MoreVert, contentDescription = null) },
+                    label = { Text("More") },
                 )
             }
         },
@@ -119,15 +128,6 @@ fun TimetableDetailScreen(
                 LineageEntryCard(entry = entry, onView = { onResults(entry.run.id) })
             }
 
-            item {
-                OutlinedButton(
-                    onClick = { confirmDelete = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Delete Timetable")
-                }
-            }
         }
     }
 
@@ -138,6 +138,40 @@ fun TimetableDetailScreen(
             text = { Text("This removes the generated schedule AND its full Validate/Repair/Optimize history. Imported teacher/subject/room/session data is not affected.") },
             confirmButton = { TextButton(onClick = { viewModel.delete(); confirmDelete = false }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
+    }
+
+    if (showMore) {
+        AlertDialog(
+            onDismissRequest = { showMore = false },
+            title = { Text("Timetable actions") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = { showMore = false; showExportPicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.Download, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Export a version")
+                    }
+                    TextButton(
+                        onClick = { showMore = false; viewModel.repairLatest() },
+                        enabled = !viewModel.busy && viewModel.latest != null,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Repair latest schedule")
+                    }
+                    TextButton(
+                        onClick = { showMore = false; confirmDelete = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) { Text("Delete timetable") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showMore = false }) { Text("Close") } },
         )
     }
 

@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Only the one color the adaptive-icon XML needs at the resource-system level.
-         Every other color lives in exactly one place now: designsystem/Theme.kt — see that
-         file for why duplicating a palette across XML and Compose was dropped. -->
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#FFAB00</color>
 </resources>
