@@ -33,11 +33,13 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
     val latest: LineageEntry? get() = entries.lastOrNull()
 
     fun load() {
-        viewModelScope.launch {
-            val lineage = repository.getLineage(rootRunId)
-            entries = lineage.map { LineageEntry(it, repository.getConflicts(it.id).size) }
-            loaded = true
-        }
+        viewModelScope.launch { reload() }
+    }
+
+    private suspend fun reload() {
+        val lineage = repository.getLineage(rootRunId)
+        entries = lineage.map { LineageEntry(it, repository.getConflicts(it.id).size) }
+        loaded = true
     }
 
     /** Validate the latest entry — read-only, so it never creates a new row; just reports the count. */
@@ -46,7 +48,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         viewModelScope.launch {
             busy = true
             repository.validate(target.id)
-            load()
+            reload()
             busy = false
         }
     }
@@ -57,7 +59,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         viewModelScope.launch {
             busy = true
             repository.optimize(target.id)
-            load()
+            reload()
             busy = false
         }
     }
@@ -68,7 +70,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         viewModelScope.launch {
             busy = true
             repository.repair(target.id)
-            load()
+            reload()
             busy = false
         }
     }
@@ -77,6 +79,16 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         viewModelScope.launch {
             repository.deleteRun(rootRunId)
             deleted = true
+        }
+    }
+
+    /** Delete one saved version. Deleting the root removes its whole lineage; deleting a derived
+     * version removes only that version, leaving the remaining history intact. */
+    fun deleteVersion(runId: String, onDeleted: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            repository.deleteRun(runId)
+            reload()
+            onDeleted?.invoke()
         }
     }
 

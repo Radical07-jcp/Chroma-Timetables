@@ -94,21 +94,21 @@ private fun colorsFor(mode: ThemeMode, buttonAccent: Color, panelAccent: Color) 
 
 private val baseTypography = Typography()
 val CromaTypography = Typography(
-    displayLarge = baseTypography.displayLarge.copy(fontWeight = FontWeight.Bold),
-    displayMedium = baseTypography.displayMedium.copy(fontWeight = FontWeight.Bold),
-    displaySmall = baseTypography.displaySmall.copy(fontWeight = FontWeight.Bold),
-    headlineLarge = baseTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-    headlineMedium = baseTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-    headlineSmall = baseTypography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-    titleLarge = baseTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
-    titleMedium = baseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    titleSmall = baseTypography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-    bodyLarge = baseTypography.bodyLarge.copy(fontWeight = FontWeight.Normal),
-    bodyMedium = baseTypography.bodyMedium.copy(fontWeight = FontWeight.Normal),
-    bodySmall = baseTypography.bodySmall.copy(fontWeight = FontWeight.Normal),
-    labelLarge = baseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-    labelMedium = baseTypography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-    labelSmall = baseTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+    displayLarge = baseTypography.displayLarge.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    displayMedium = baseTypography.displayMedium.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    displaySmall = baseTypography.displaySmall.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    headlineLarge = baseTypography.headlineLarge.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    headlineMedium = baseTypography.headlineMedium.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    headlineSmall = baseTypography.headlineSmall.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
+    titleLarge = baseTypography.titleLarge.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Bold),
+    titleMedium = baseTypography.titleMedium.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
+    titleSmall = baseTypography.titleSmall.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
+    bodyLarge = baseTypography.bodyLarge.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Normal),
+    bodyMedium = baseTypography.bodyMedium.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Normal),
+    bodySmall = baseTypography.bodySmall.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.Normal),
+    labelLarge = baseTypography.labelLarge.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
+    labelMedium = baseTypography.labelMedium.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
+    labelSmall = baseTypography.labelSmall.copy(fontFamily = SpaceGroteskFamily, fontWeight = FontWeight.SemiBold),
 )
 
 @Composable

@@ -137,14 +137,31 @@ private fun CromaApp(
                 DefineTimetablePeriodsScreen(
                     viewModel = createWizard,
                     onBack = { navController.popBackStack() },
-                    onNext = { navController.navigate(CromaRoutes.CREATE_GENERATE) },
+                    onNext = {
+                        createWizard.sessionType?.let { navController.navigate(CromaRoutes.createImport(it.name)) }
+                    },
+                )
+            }
+            composable(
+                CromaRoutes.CREATE_IMPORT,
+                arguments = listOf(navArgument("type") { type = NavType.StringType }),
+            ) { entry ->
+                val type = SessionTypeEntity.valueOf(entry.arguments!!.getString("type")!!)
+                ImportScreen(
+                    sessionType = type,
+                    onBack = { navController.popBackStack() },
+                    onImported = {
+                        navController.navigate(CromaRoutes.CREATE_GENERATE) {
+                            popUpTo(CromaRoutes.CREATE_IMPORT) { inclusive = true }
+                        }
+                    },
                 )
             }
             composable(CromaRoutes.CREATE_GENERATE) {
                 GenerateScreen(
                     wizard = createWizard,
                     onBack = { navController.popBackStack() },
-                    onImportData = { createWizard.sessionType?.let { navController.navigate(CromaRoutes.import(it.name)) } },
+                    onImportData = { createWizard.sessionType?.let { navController.navigate(CromaRoutes.createImport(it.name)) } },
                     onDone = { runId ->
                         createWizard.reset()
                         navController.navigate(CromaRoutes.timetableDetail(runId)) {
@@ -282,6 +299,7 @@ private fun CromaApp(
                     onBack = { navController.popBackStack() },
                     onPickGroupA = { navController.navigate(CromaRoutes.ACCENT_GROUP_A) },
                     onPickGroupB = { navController.navigate(CromaRoutes.ACCENT_GROUP_B) },
+                    onOpenTeachers = { navController.navigate(CromaRoutes.TEACHERS) },
                 )
             }
             composable(CromaRoutes.ACCENT_GROUP_A) {

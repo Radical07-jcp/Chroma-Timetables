@@ -45,7 +45,7 @@ class ResultsViewModel(private val repository: ScheduleRepository) : ViewModel()
             val blocks = loadedRun?.let { PeriodBlock.decodeList(it.periodBlocksEncoded) }?.ifEmpty { PeriodBlock.FALLBACK_DEFAULT } ?: PeriodBlock.FALLBACK_DEFAULT
             val days = loadedRun?.activeDaysEncoded?.split(",")?.mapNotNull { it.trim().toIntOrNull() }?.ifEmpty { PeriodBlock.FALLBACK_DEFAULT_DAYS } ?: PeriodBlock.FALLBACK_DEFAULT_DAYS
             val totalPeriods = TimeslotGenerator.generate(blocks, days).size
-            val allRoomsCount = repository.getHomeCounts().rooms
+            val allRoomsCount = repository.roomCountForRun(runId)
             val utilization = if (allRoomsCount == 0 || totalPeriods == 0) {
                 0.0
             } else {

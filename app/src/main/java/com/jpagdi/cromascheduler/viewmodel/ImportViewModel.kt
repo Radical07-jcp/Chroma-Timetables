@@ -73,6 +73,14 @@ class ImportViewModel(private val csvImportService: CsvImportService) : ViewMode
         return uri.lastPathSegment
     }
 
+    fun clearCurrentData() {
+        viewModelScope.launch {
+            runCatching { csvImportService.clearCurrentData() }
+                .onSuccess { uiState = ImportUiState.Idle }
+                .onFailure { e -> uiState = ImportUiState.Failed(e.message ?: "Could not clear imported data") }
+        }
+    }
+
     fun reset() {
         uiState = ImportUiState.Idle
     }

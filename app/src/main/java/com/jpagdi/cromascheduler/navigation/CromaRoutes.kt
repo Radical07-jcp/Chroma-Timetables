@@ -13,6 +13,7 @@ object CromaRoutes {
 
     const val CREATE_CHOOSE_TYPE = "create/choose_type"
     const val CREATE_DEFINE_PERIODS = "create/define_periods"
+    const val CREATE_IMPORT = "create/import/{type}"
     const val CREATE_GENERATE = "create/generate"
 
     const val REPAIR_CHOOSE_TYPE = "repair/choose_type"
@@ -34,6 +35,7 @@ object CromaRoutes {
     const val ACCENT_GROUP_B = "settings/accent_group_b"
 
     fun import(type: String) = "import/$type"
+    fun createImport(type: String) = "create/import/$type"
     fun timetableDetail(runId: String) = "timetable/$runId"
     fun validate(runId: String) = "validate/$runId"
     fun repair(runId: String) = "repair/fix/$runId"

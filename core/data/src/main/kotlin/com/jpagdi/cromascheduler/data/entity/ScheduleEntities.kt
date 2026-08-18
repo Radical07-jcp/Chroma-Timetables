@@ -154,6 +154,8 @@ data class ScheduleRunEntity(
     // (not their immediate source), so the whole lineage is a flat one-level group under one
     // Home card regardless of how many repair/optimize passes happen — no recursive parent chase.
     val rootRunId: String? = null,
+    /** Immutable snapshot of the imported source dataset used by this timetable. This keeps older timetables independent when a new ZIP replaces the current working dataset. */
+    val sourceSnapshotEncoded: String = "",
 )
 
 @Entity(

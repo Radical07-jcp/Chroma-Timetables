@@ -48,6 +48,7 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, r
         }
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            CromaWorkflowTags(active = "VALIDATE", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             StatisticsCard(viewModel)
 
             ScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 12.dp) {

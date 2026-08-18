@@ -21,6 +21,7 @@ class HomeViewModel(private val repository: ScheduleRepository) : ViewModel() {
 
     fun load() {
         viewModelScope.launch {
+            repository.ensureLegacySnapshots()
             val roots = repository.getRootRuns()
             val conflictCounts = repository.getConflictCountsByRun()
             rows = roots.map { root ->

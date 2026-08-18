@@ -80,6 +80,9 @@ interface AvailabilityDao {
     @Query("DELETE FROM availability_blocks WHERE entityType = :type AND entityId = :entityId AND dayOfWeek = :day AND periodIndex = :period")
     suspend fun deleteBlock(type: AvailabilityEntityType, entityId: String, day: Int, period: Int)
 
+    @Query("SELECT * FROM availability_blocks")
+    suspend fun getAll(): List<AvailabilityBlockEntity>
+
     @Query("DELETE FROM availability_blocks")
     suspend fun clear()
 }

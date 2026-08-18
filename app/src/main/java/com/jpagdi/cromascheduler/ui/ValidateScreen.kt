@@ -30,6 +30,7 @@ fun ValidateScreen(runId: String, onBack: () -> Unit, onRepair: (runId: String) 
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            CromaWorkflowTags(active = "VALIDATE")
             when (val state = viewModel.operationState) {
                 is OperationUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))

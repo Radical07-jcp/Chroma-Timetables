@@ -1,6 +1,5 @@
 package com.jpagdi.cromascheduler.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,9 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import com.jpagdi.cromascheduler.R
 import com.jpagdi.cromascheduler.designsystem.LocalHeaderAccent
 import com.jpagdi.cromascheduler.designsystem.PressStart2PFamily
@@ -30,11 +29,14 @@ import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
 fun CromaTopBar(title: String, onBack: () -> Unit, accent: Color = LocalHeaderAccent.current) {
     TopAppBar(
         title = {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Column(verticalArrangement = Arrangement.Center) {
+                BrandWordmark()
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -65,7 +67,7 @@ fun CromaHomeHeader(
     accent: Color = LocalHeaderAccent.current,
 ) {
     CenterAlignedTopAppBar(
-        title = { BrandWordmark(color = MaterialTheme.colorScheme.onBackground) },
+        title = { BrandWordmark() },
         navigationIcon = {
             FilledIconButton(
                 onClick = onOpenDrawer,
@@ -94,11 +96,11 @@ fun CromaHomeHeader(
 }
 
 @Composable
-fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
+fun BrandWordmark(modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             "CHROMA",
-            color = color,
+            color = Color(0xFFFFB511),
             fontFamily = PressStart2PFamily,
             fontSize = 17.sp,
             lineHeight = 17.sp,
@@ -106,14 +108,57 @@ fun BrandWordmark(modifier: Modifier = Modifier, color: Color = Color.White) {
         )
         Text(
             "TIMETABLES",
-            color = color,
+            color = Color(0xFF64E8C1),
             fontFamily = PressStart2PFamily,
-            fontSize = 8.sp,
-            lineHeight = 8.sp,
-            letterSpacing = 1.4.sp,
+            fontSize = 8.6.sp,
+            lineHeight = 9.sp,
+            letterSpacing = 1.0.sp,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
+}
+
+@Composable
+fun CromaWorkflowTags(active: String? = null, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        WorkflowTag("PLAN", Color(0xFFFFB511), active == "PLAN")
+        WorkflowTag("VALIDATE", Color(0xFF64E8C1), active == "VALIDATE")
+        WorkflowTag("OPTIMIZE", Color(0xFF8AA8FF), active == "OPTIMIZE")
+    }
+}
+
+@Composable
+private fun WorkflowTag(label: String, color: Color, active: Boolean) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = if (active) color.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = if (active) 0.75f else 0.45f)),
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (active) color else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+fun FormalBodyText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.bodyMedium,
+        color = color,
+        textAlign = TextAlign.Justify,
+    )
 }
 
 @Composable

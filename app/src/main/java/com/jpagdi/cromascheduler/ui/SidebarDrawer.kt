@@ -47,7 +47,7 @@ fun SidebarDrawer(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    BrandWordmark(color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    BrandWordmark()
                     Text(
                         "PLAN  •  VALIDATE  •  OPTIMIZE",
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),

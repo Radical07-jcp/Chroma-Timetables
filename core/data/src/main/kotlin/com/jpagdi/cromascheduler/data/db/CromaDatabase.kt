@@ -34,7 +34,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 7, // bumped: schedule_runs gained rootRunId (see MIGRATION_6_7 below)
+    version = 8, // schedule_runs now stores an immutable source-data snapshot per timetable
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -132,6 +132,16 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+
+/** v7 -> v8: stores the source-data snapshot used to build each timetable. The snapshot lets
+ * users import a different ZIP for a new timetable without invalidating older saved schedules.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE schedule_runs ADD COLUMN sourceSnapshotEncoded TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 /**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
@@ -144,5 +154,5 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
 )
-    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
     .build()

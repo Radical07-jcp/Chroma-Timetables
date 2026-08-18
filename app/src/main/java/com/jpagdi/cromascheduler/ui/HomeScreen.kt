@@ -64,6 +64,9 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
+                    CromaWorkflowTags(active = "PLAN")
+                }
+                item {
                     Column(
                         modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -108,10 +111,8 @@ private fun EmptyHome(modifier: Modifier, onCreate: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Text("Build your first timetable", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
-        Text(
+        FormalBodyText(
             "Set the schedule type and periods, import your data, then let Chroma generate a conflict-aware timetable on this device.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(22.dp))
         Button(

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
@@ -60,6 +61,7 @@ fun TimetableDetailScreen(
     LaunchedEffect(viewModel.deleted) { if (viewModel.deleted) onDeleted() }
 
     var confirmDelete by remember { mutableStateOf(false) }
+    var versionToDelete by remember { mutableStateOf<LineageEntry?>(null) }
     var showExportPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     val root = viewModel.root
@@ -115,6 +117,16 @@ fun TimetableDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
+                CromaWorkflowTags(
+                    active = when (viewModel.latest?.run?.mode) {
+                        "OPTIMIZE" -> "OPTIMIZE"
+                        "REPAIR" -> "VALIDATE"
+                        else -> "PLAN"
+                    },
+                )
+            }
+
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(root.sessionType.label(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -125,10 +137,43 @@ fun TimetableDetailScreen(
             }
 
             items(viewModel.entries) { entry ->
-                LineageEntryCard(entry = entry, onView = { onResults(entry.run.id) })
+                LineageEntryCard(
+                    entry = entry,
+                    onView = { onResults(entry.run.id) },
+                    onDelete = { versionToDelete = entry },
+                )
             }
 
         }
+    }
+
+    if (versionToDelete != null) {
+        val target = versionToDelete!!
+        AlertDialog(
+            onDismissRequest = { versionToDelete = null },
+            title = { Text(if (target.run.id == root?.id) "Delete this timetable?" else "Delete this version?") },
+            text = {
+                Text(
+                    if (target.run.id == root?.id)
+                        "This is the original timetable. Deleting it removes the entire timetable history."
+                    else
+                        "This removes only this saved version. Other versions in the timetable history remain available.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val isRoot = target.run.id == root?.id
+                        versionToDelete = null
+                        viewModel.deleteVersion(target.run.id) {
+                            if (isRoot) onDeleted()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { versionToDelete = null }) { Text("Cancel") } },
+        )
     }
 
     if (confirmDelete) {
@@ -203,7 +248,7 @@ fun TimetableDetailScreen(
 }
 
 @Composable
-private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit) {
+private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit, onDelete: () -> Unit) {
     val run = entry.run
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -216,6 +261,9 @@ private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit) {
                 Text(run.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 if (entry.conflictCount > 0) StatusPill("${entry.conflictCount} CONFLICTS", CromaStatus.Conflicts)
                 else StatusPill("CLEAN", CromaStatus.Clean)
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete version", tint = MaterialTheme.colorScheme.error)
+                }
             }
             Text(
                 "${run.algorithmUsed} • ${SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault()).format(Date(run.createdAtEpochMillis))}",

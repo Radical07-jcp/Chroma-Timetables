@@ -20,6 +20,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onPickGroupA: () -> Unit,
     onPickGroupB: () -> Unit,
+    onOpenTeachers: () -> Unit,
 ) {
     val container = LocalAppContainer.current
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container.appPreferencesStore))
@@ -44,29 +45,22 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
-            Text(
+            FormalBodyText(
                 "Choose how schedules are generated and how the interface is accented.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             SettingsSection(title = "Chroma Engine") {
-                Text("v1.0.0", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Initial stable release. Includes deterministic generation, validation, repair, local optimization, " +
-                        "ZIP/CSV import, and timetable export.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text("v1.0.1", style = MaterialTheme.typography.titleMedium)
+                FormalBodyText(
+                    "UI/UX revamp with Material 3 theming, Space Grotesk typography, safer import replacement, persistent timetable source snapshots, version deletion, and preference-aware repair/optimization.",
                 )
                 Text("Developed by Sir_JPagdi", style = MaterialTheme.typography.labelMedium)
             }
 
             SettingsSection(title = "Scheduling") {
                 Text("Default algorithm", style = MaterialTheme.typography.titleMedium)
-                Text(
+                FormalBodyText(
                     "Used as the starting choice for every new timetable. You can still change it for an individual schedule.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(6.dp))
                 viewModel.algorithmNames.forEach { name ->
@@ -87,11 +81,19 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection(title = "Teacher availability") {
+                Text("Time preferences", style = MaterialTheme.typography.titleMedium)
+                FormalBodyText(
+                    "Mark periods a teacher cannot take. These preferences feed directly into repair and optimization so an existing timetable can be adjusted locally instead of rebuilt.",
+                )
+                Button(onClick = onOpenTeachers, modifier = Modifier.fillMaxWidth()) {
+                    Text("Manage teacher availability")
+                }
+            }
+
             SettingsSection(title = "Accent colors") {
-                Text(
+                FormalBodyText(
                     "Two independent accents let you keep the interface expressive without changing the selected theme.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(4.dp))
                 AccentRow("Top panel", groupA, onPickGroupA)

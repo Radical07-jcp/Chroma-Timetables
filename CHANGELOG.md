@@ -1,13 +1,54 @@
 # Chroma Engine Changelog
 
-## v1.0.1 — In-App Logo & Visual Polish
+## [1.0.1] — Full UI/Workflow Revamp
 
-### Changed
-- Replaced the in-app Chroma logo with the new transparent-background artwork.
-- Added a theme-aware contrasting shadow/halo behind the in-app logo for improved visibility across Light, Dark, and Black themes.
-- Preserved the gold-background launcher icon unchanged.
-- Kept the logo shadow as UI styling rather than baking it into the logo asset.
+### Typography & Branding
+- Wired the UI typography to **Space Grotesk** through the Jetpack Compose Google Fonts provider, with the bundled Montserrat face retained only as an offline fallback; the UI no longer intentionally uses the Android system font.
+- Preserved **Press Start 2P** for the CHROMA / TIMETABLES brand wordmark.
+- Updated **CHROMA** to the gold brand color and **TIMETABLES** to a contrasting mint color.
+- Adjusted the TIMETABLES size/letter spacing so its visual width better matches CHROMA.
+- Added the same branded wordmark treatment to the shared screen chrome.
 
+### In-App Logo
+- Replaced the in-app display logo with the newly supplied artwork.
+- Removed the remaining black background/fill from the two calendar squares and graph areas so those regions are transparent.
+- Added a theme-aware contrasting shadow/halo around the transparent in-app logo.
+- **Launcher icon assets were not changed by this pass**; the gold launcher identity remains separate from the transparent in-app logo.
+
+### Material 3 Visual System
+- Extended the reference Import-success visual language across Home, Import, Generate, Timetable Detail, and shared screen chrome.
+- Added distinct semantic **PLAN / VALIDATE / OPTIMIZE** tags with separate colors.
+- Increased visual hierarchy, spacing, surface treatment, and action clarity without replacing the existing scheduling architecture.
+- Added formal justified alignment for longer explanatory/body copy where appropriate.
+- Preserved Light, Dark, Black, and independent accent-color preferences.
+
+### Timetable Creation / Import
+- Changed the New Timetable flow so **every new timetable starts with a fresh import step** before generation.
+- ZIP import now **replaces the current working dataset** instead of silently reusing a previous ZIP's data.
+- Added **Clear current imported data** for explicitly removing the working dataset.
+- Existing saved timetables remain intact when the working dataset is replaced or cleared.
+- Retained automatic validation as part of generation.
+- Preserved the post-import continuation into Generate.
+
+### Saved Timetable Data Isolation
+- Added an immutable source-data snapshot to each timetable version.
+- Older timetable versions can therefore still be displayed, validated, repaired, optimized, and exported after a different ZIP is imported for a newer timetable.
+- Kept legacy runs without snapshots compatible through the existing global-data fallback.
+
+### Repair / Optimization
+- Teacher availability changes now propagate into saved timetable source snapshots.
+- Repair and optimization read the timetable's own source snapshot instead of accidentally switching to whichever dataset was most recently imported.
+- Optimization retains the minimal-change strategy, including local moves and direct teacher/session swaps.
+- Validation remains part of the optimization result path.
+
+### Timetable Version Management
+- Added delete controls to **every saved timetable version** in the timetable detail history.
+- Deleting the root timetable removes its complete lineage.
+- Deleting a derived Repair/Optimize version removes only that version, leaving the rest of the timetable history intact.
+- Preserved the existing Home-level timetable lineage model.
+
+### Release Metadata
+- Settings/About version display updated to **Chroma Engine v1.0.1**.
 
 This changelog records the changes made from the supplied **base ZIP (treated as Chroma Engine v0.0.0)** to the current **Chroma Engine v1.0.0** working baseline.
 

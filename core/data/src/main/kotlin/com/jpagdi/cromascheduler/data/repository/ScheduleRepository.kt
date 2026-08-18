@@ -25,6 +25,8 @@ import com.jpagdi.cromascheduler.engine.validation.ConstraintValidator
 import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
 import com.jpagdi.cromascheduler.engine.validation.ValidationContext
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 object ScheduleMode {
     const val GENERATE = "GENERATE"
@@ -42,6 +44,158 @@ object ScheduleMode {
  * sessions get selected and which engine entry point gets called.
  */
 class ScheduleRepository(private val database: CromaDatabase) {
+
+
+    /**
+     * Snapshot of the current imported source dataset. A timetable keeps this copy so replacing
+     * the working import for the next timetable never destroys the data needed to display,
+     * validate, repair, optimize, or export an older timetable.
+     */
+    private data class SourceSnapshot(
+        val teachers: List<com.jpagdi.cromascheduler.data.entity.TeacherEntity>,
+        val subjects: List<com.jpagdi.cromascheduler.data.entity.SubjectEntity>,
+        val rooms: List<com.jpagdi.cromascheduler.data.entity.RoomEntity>,
+        val sections: List<com.jpagdi.cromascheduler.data.entity.SectionEntity>,
+        val sessions: List<SessionEntity>,
+        val availability: List<com.jpagdi.cromascheduler.data.entity.AvailabilityBlockEntity>,
+    )
+
+    private suspend fun captureSourceSnapshot(): String {
+        val root = JSONObject()
+        val teachers = database.teacherDao().getAll()
+        val subjects = database.subjectDao().getAll()
+        val rooms = database.roomDao().getAll()
+        val sections = database.sectionDao().getAll()
+        val sessions = database.sessionDao().getAll()
+        val availability = database.availabilityDao().getAll()
+        root.put("teachers", JSONArray().apply {
+            teachers.forEach { t ->
+                put(JSONObject().apply {
+                    put("id", t.id); put("name", t.name); put("subjectIds", JSONArray(t.subjectIds))
+                    t.maxLoadPerDay?.let { put("maxLoadPerDay", it) }
+                })
+            }
+        })
+        root.put("subjects", JSONArray().apply {
+            subjects.forEach { v -> put(JSONObject().apply { put("id", v.id); put("name", v.name); put("code", v.code) }) }
+        })
+        root.put("rooms", JSONArray().apply {
+            rooms.forEach { v -> put(JSONObject().apply { put("id", v.id); put("name", v.name); put("capacity", v.capacity); put("type", v.type) }) }
+        })
+        root.put("sections", JSONArray().apply {
+            sections.forEach { v -> put(JSONObject().apply { put("id", v.id); put("name", v.name); put("studentCount", v.studentCount) }) }
+        })
+        root.put("sessions", JSONArray().apply {
+            sessions.forEach { v ->
+                put(JSONObject().apply {
+                    put("id", v.id); put("type", v.type.name)
+                    put("subjectId", v.subjectId); put("teacherId", v.teacherId); put("sectionId", v.sectionId)
+                    put("roomTypeRequired", v.roomTypeRequired); put("durationPeriods", v.durationPeriods)
+                })
+            }
+        })
+        root.put("availability", JSONArray().apply {
+            availability.forEach { v ->
+                put(JSONObject().apply {
+                    put("entityType", v.entityType.name); put("entityId", v.entityId)
+                    put("dayOfWeek", v.dayOfWeek); put("periodIndex", v.periodIndex)
+                })
+            }
+        })
+        return root.toString()
+    }
+
+    private fun snapshotFrom(encoded: String): SourceSnapshot? {
+        if (encoded.isBlank()) return null
+        return runCatching {
+            val root = JSONObject(encoded)
+            fun array(name: String) = root.optJSONArray(name) ?: JSONArray()
+            val teachers = buildList {
+                val a = array("teachers")
+                for (i in 0 until a.length()) {
+                    val o = a.getJSONObject(i)
+                    val ids = o.optJSONArray("subjectIds")
+                    add(com.jpagdi.cromascheduler.data.entity.TeacherEntity(
+                        id = o.getString("id"), name = o.getString("name"),
+                        subjectIds = buildList { if (ids != null) for (j in 0 until ids.length()) add(ids.getString(j)) },
+                        maxLoadPerDay = if (o.has("maxLoadPerDay")) o.optInt("maxLoadPerDay") else null,
+                    ))
+                }
+            }
+            val subjects = buildList {
+                val a = array("subjects"); for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(com.jpagdi.cromascheduler.data.entity.SubjectEntity(o.getString("id"),o.getString("name"),o.getString("code"))) }
+            }
+            val rooms = buildList {
+                val a = array("rooms"); for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(com.jpagdi.cromascheduler.data.entity.RoomEntity(o.getString("id"),o.getString("name"),o.getInt("capacity"),o.getString("type"))) }
+            }
+            val sections = buildList {
+                val a = array("sections"); for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(com.jpagdi.cromascheduler.data.entity.SectionEntity(o.getString("id"),o.getString("name"),o.getInt("studentCount"))) }
+            }
+            val sessions = buildList {
+                val a = array("sessions"); for (i in 0 until a.length()) {
+                    val o=a.getJSONObject(i)
+                    add(SessionEntity(
+                        id=o.getString("id"), type=SessionTypeEntity.valueOf(o.getString("type")),
+                        subjectId=o.optString("subjectId", null), teacherId=o.optString("teacherId", null),
+                        sectionId=o.optString("sectionId", null), roomTypeRequired=o.optString("roomTypeRequired", null),
+                        durationPeriods=o.optInt("durationPeriods", 1),
+                    ))
+                }
+            }
+            val availability = buildList {
+                val a = array("availability"); for (i in 0 until a.length()) {
+                    val o=a.getJSONObject(i)
+                    add(com.jpagdi.cromascheduler.data.entity.AvailabilityBlockEntity(
+                        AvailabilityEntityType.valueOf(o.getString("entityType")), o.getString("entityId"),
+                        o.getInt("dayOfWeek"), o.getInt("periodIndex"),
+                    ))
+                }
+            }
+            SourceSnapshot(teachers, subjects, rooms, sections, sessions, availability)
+        }.getOrNull()
+    }
+
+    private suspend fun buildSchedulingInputForRun(run: ScheduleRunEntity): SchedulingInput {
+        val snapshot = snapshotFrom(run.sourceSnapshotEncoded)
+        return if (snapshot == null) {
+            buildSchedulingInput(timeslotsFor(run)) { it.type == run.sessionType }
+        } else {
+            buildSchedulingInputFromSnapshot(timeslotsFor(run), snapshot, run.sessionType)
+        }
+    }
+
+    private fun buildSchedulingInputFromSnapshot(
+        timeslots: List<TimeslotInfo>,
+        snapshot: SourceSnapshot,
+        sessionType: SessionTypeEntity,
+    ): SchedulingInput {
+        val engineSessions = snapshot.sessions.filter { it.type == sessionType }.toEngineSessions()
+        val engineRooms = snapshot.rooms.map { EngineRoom(it.id, it.capacity, it.type) }
+        val sectionCounts = snapshot.sections.associate { it.id to it.studentCount }
+        val blockedTeacher = snapshot.teachers.associate { teacher ->
+            teacher.id to snapshot.availability.filter { it.entityType == AvailabilityEntityType.TEACHER && it.entityId == teacher.id }
+                .map { Timeslot(it.dayOfWeek, it.periodIndex) }.toSet()
+        }
+        val blockedRoom = snapshot.rooms.associate { room ->
+            room.id to snapshot.availability.filter { it.entityType == AvailabilityEntityType.ROOM && it.entityId == room.id }
+                .map { Timeslot(it.dayOfWeek, it.periodIndex) }.toSet()
+        }
+        val allTimeslots = timeslots.map { Timeslot(it.dayOfWeek, it.periodIndex) }
+        val definedPeriodsByDay = timeslots.groupBy { it.dayOfWeek }.mapValues { (_, v) -> v.map { it.periodIndex }.toSet() }
+        val availableBySession = engineSessions.associate { session ->
+            val blocked = session.teacherId?.let { blockedTeacher[it] }.orEmpty()
+            session.id to allTimeslots.filter { it !in blocked }
+        }
+        return SchedulingInput(
+            sessions = engineSessions,
+            availableTimeslotsBySession = availableBySession,
+            rooms = engineRooms,
+            sectionStudentCounts = sectionCounts,
+            blockedTeacherSlots = blockedTeacher,
+            blockedRoomSlots = blockedRoom,
+            definedPeriodsByDay = definedPeriodsByDay,
+        )
+    }
 
     /** [timeslots] is always supplied by the caller now — see [timeslotsFor], the one place that decides which run's period blocks apply. There's no global fallback here on purpose: a caller that forgets to pass real timeslots gets an empty, clearly-broken result, not a silently-wrong one borrowed from some other run. */
     suspend fun buildSchedulingInput(timeslots: List<TimeslotInfo>, sessionFilter: (SessionEntity) -> Boolean = { true }): SchedulingInput {
@@ -127,6 +281,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val startTime = System.currentTimeMillis()
         val output = SchedulingEngine.generate(input, algorithm)
         val elapsed = System.currentTimeMillis() - startTime
+        val sourceSnapshot = captureSourceSnapshot()
 
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
@@ -139,6 +294,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             sessionType = sessionType,
             periodBlocksEncoded = PeriodBlock.encodeList(periodBlocks),
             activeDaysEncoded = sortedDays.joinToString(","),
+            sourceSnapshotEncoded = sourceSnapshot,
         )
         persistRun(run, output.assignments, output.roomBySession, output.violations)
         return runId
@@ -147,7 +303,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
     /** Validate Existing Schedule — re-checks a saved run's current assignments (against its OWN period blocks and only its own session type) and refreshes its conflict records. */
     suspend fun validate(runId: String): List<ConstraintViolation> {
         val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
-        val input = buildSchedulingInput(timeslotsFor(run)) { it.type == run.sessionType }
+        val input = buildSchedulingInputForRun(run)
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(runId)
         val assignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -188,6 +344,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
         activeDays: List<Int>,
         rows: List<ScheduleAssignmentEntity>,
     ): Pair<String, List<ConstraintViolation>> {
+        val sourceSnapshot = captureSourceSnapshot()
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
             id = runId,
@@ -199,6 +356,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             sessionType = sessionType,
             periodBlocksEncoded = PeriodBlock.encodeList(periodBlocks),
             activeDaysEncoded = activeDays.sorted().joinToString(","),
+            sourceSnapshotEncoded = sourceSnapshot,
         )
         val assignments = rows.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = rows.mapNotNull { r -> r.roomId?.let { r.sessionId to it } }.toMap()
@@ -215,7 +373,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
      */
     suspend fun repair(sourceRunId: String, algorithmName: String = ColoringAlgorithmRegistry.default.name): String {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
-        val input = buildSchedulingInput(sourceRun?.let(::timeslotsFor).orEmpty()) { it.type == (sourceRun?.sessionType ?: SessionTypeEntity.CLASS) }
+        val input = if (sourceRun != null) {
+            buildSchedulingInputForRun(sourceRun)
+        } else {
+            buildSchedulingInput(emptyList())
+        }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(sourceRunId)
         val existingAssignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val existingRoomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -239,6 +401,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             // sourceRun's OWN rootRunId if it's already history, else sourceRun IS the root —
             // keeps every lineage flat at one level no matter how many repairs deep this is.
             rootRunId = sourceRun?.rootRunId ?: sourceRunId,
+            sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
         )
         persistRun(run, result.assignments, result.roomBySession, result.remainingViolations)
         return runId
@@ -258,7 +421,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
      * The source run is never mutated; the result is a new version in the same lineage. */
     suspend fun optimize(sourceRunId: String, maxPasses: Int = 3, maxChanges: Int = 12): OptimizationOutcome {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
-        val input = buildSchedulingInput(sourceRun?.let(::timeslotsFor).orEmpty()) { it.type == (sourceRun?.sessionType ?: SessionTypeEntity.CLASS) }
+        val input = if (sourceRun != null) {
+            buildSchedulingInputForRun(sourceRun)
+        } else {
+            buildSchedulingInput(emptyList())
+        }
         val savedAssignments = database.scheduleRunDao().getAssignmentsFor(sourceRunId)
         val assignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
@@ -295,6 +462,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
             activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
             rootRunId = sourceRun?.rootRunId ?: sourceRunId,
+            sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
         )
         persistRun(run, result.assignments, result.roomBySession, violations)
         return OptimizationOutcome(
@@ -306,6 +474,20 @@ class ScheduleRepository(private val database: CromaDatabase) {
             beforeScore = result.before.totalScore,
             afterScore = result.after.totalScore,
         )
+    }
+
+    /** Backfills source snapshots for pre-v1.0.1 runs while the current working dataset is still available. */
+    suspend fun ensureLegacySnapshots() {
+        val legacyRuns = database.scheduleRunDao().getAll().filter { it.sourceSnapshotEncoded.isBlank() }
+        if (legacyRuns.isEmpty()) return
+        val snapshot = captureSourceSnapshot()
+        val hasCurrentData = database.sessionDao().getAll().isNotEmpty() ||
+            database.teacherDao().getAll().isNotEmpty() ||
+            database.subjectDao().getAll().isNotEmpty()
+        if (!hasCurrentData) return
+        database.withTransaction {
+            legacyRuns.forEach { database.scheduleRunDao().upsert(it.copy(sourceSnapshotEncoded = snapshot)) }
+        }
     }
 
     /** Home's list — one card per lineage. */
@@ -355,6 +537,23 @@ class ScheduleRepository(private val database: CromaDatabase) {
 
     data class HomeCounts(val teachers: Int, val subjects: Int, val rooms: Int, val sessions: Int)
 
+    /** Clears only the current working import. Saved timetable runs remain intact because each run stores its own source snapshot. */
+    suspend fun clearCurrentImportedData() {
+        database.withTransaction {
+            database.availabilityDao().clear()
+            database.sessionDao().clear()
+            database.sectionDao().clear()
+            database.roomDao().clear()
+            database.subjectDao().clear()
+            database.teacherDao().clear()
+        }
+    }
+
+    suspend fun roomCountForRun(runId: String): Int {
+        val run = database.scheduleRunDao().getById(runId) ?: return 0
+        return snapshotFrom(run.sourceSnapshotEncoded)?.rooms?.size ?: database.roomDao().getAll().size
+    }
+
     suspend fun getHomeCounts(): HomeCounts = HomeCounts(
         teachers = database.teacherDao().getAll().size,
         subjects = database.subjectDao().getAll().size,
@@ -368,6 +567,33 @@ class ScheduleRepository(private val database: CromaDatabase) {
             .map { Timeslot(it.dayOfWeek, it.periodIndex) }
             .toSet()
 
+
+    private suspend fun refreshTeacherAvailabilityInSnapshots(teacherId: String) {
+        val blocks = database.availabilityDao().getBlocksFor(AvailabilityEntityType.TEACHER, teacherId)
+        database.scheduleRunDao().getAll().forEach { run ->
+            if (run.sourceSnapshotEncoded.isBlank()) return@forEach
+            val root = runCatching { JSONObject(run.sourceSnapshotEncoded) }.getOrNull() ?: return@forEach
+            val availability = root.optJSONArray("availability") ?: JSONArray()
+            val retained = JSONArray()
+            for (i in 0 until availability.length()) {
+                val o = availability.getJSONObject(i)
+                if (!(o.optString("entityType") == AvailabilityEntityType.TEACHER.name && o.optString("entityId") == teacherId)) {
+                    retained.put(o)
+                }
+            }
+            blocks.forEach {
+                retained.put(JSONObject().apply {
+                    put("entityType", AvailabilityEntityType.TEACHER.name)
+                    put("entityId", teacherId)
+                    put("dayOfWeek", it.dayOfWeek)
+                    put("periodIndex", it.periodIndex)
+                })
+            }
+            root.put("availability", retained)
+            database.scheduleRunDao().upsert(run.copy(sourceSnapshotEncoded = root.toString()))
+        }
+    }
+
     /** In-app equivalent of a row in availability.csv — lets a teacher mark/unmark a single period without a fresh CSV import. */
     suspend fun setTeacherBlocked(teacherId: String, day: Int, period: Int, blocked: Boolean) {
         if (blocked) {
@@ -377,6 +603,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
         } else {
             database.availabilityDao().deleteBlock(AvailabilityEntityType.TEACHER, teacherId, day, period)
         }
+        refreshTeacherAvailabilityInSnapshots(teacherId)
     }
 
     suspend fun getAssignments(runId: String): List<ScheduleAssignmentEntity> = database.scheduleRunDao().getAssignmentsFor(runId)
@@ -393,11 +620,12 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
         val assignments = database.scheduleRunDao().getAssignmentsFor(runId)
             .sortedWith(compareBy({ it.dayOfWeek }, { it.periodIndex }))
-        val sessions = database.sessionDao().getAll().associateBy { it.id }
-        val subjects = database.subjectDao().getAll().associateBy { it.id }
-        val teachers = database.teacherDao().getAll().associateBy { it.id }
-        val sections = database.sectionDao().getAll().associateBy { it.id }
-        val rooms = database.roomDao().getAll().associateBy { it.id }
+        val snapshot = snapshotFrom(run.sourceSnapshotEncoded)
+        val sessions = (snapshot?.sessions ?: database.sessionDao().getAll()).associateBy { it.id }
+        val subjects = (snapshot?.subjects ?: database.subjectDao().getAll()).associateBy { it.id }
+        val teachers = (snapshot?.teachers ?: database.teacherDao().getAll()).associateBy { it.id }
+        val sections = (snapshot?.sections ?: database.sectionDao().getAll()).associateBy { it.id }
+        val rooms = (snapshot?.rooms ?: database.roomDao().getAll()).associateBy { it.id }
         val timeslots = timeslotsFor(run).associateBy { it.dayOfWeek to it.periodIndex }
 
         return assignments.mapNotNull { a ->

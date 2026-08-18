@@ -71,6 +71,7 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            CromaWorkflowTags(active = "PLAN")
             when {
                 sessionCount == 0 -> {
                     Card(
@@ -114,9 +115,8 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             if (!clean) {
-                                Text(
-                                    "This can happen when the data itself has an unavoidable overlap (e.g. a teacher double-booked in the source data). Open this timetable's Validate action to see exactly which sessions conflict.",
-                                    style = MaterialTheme.typography.bodySmall,
+                                FormalBodyText(
+                                    "This can happen when the data itself has an unavoidable overlap (for example, a teacher is double-booked in the source data). Open this timetable's Validate action to see exactly which sessions conflict.",
                                 )
                             }
                         }
@@ -137,6 +137,13 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
                                 modifier = Modifier.fillMaxWidth(),
                             )
 
+                            OutlinedButton(
+                                onClick = onImportData,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Replace Source ZIP")
+                            }
+
                             Box {
                                 OutlinedButton(onClick = { algorithmMenuExpanded = true }) {
                                     Text("Algorithm: ${algorithm ?: "dsatur"}")
@@ -147,9 +154,8 @@ fun GenerateScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImpor
                                     }
                                 }
                             }
-                            Text(
-                                "DSATUR is the default — it adapts as it colors and generally produces the fewest wasted timeslots. Greedy and Welsh-Powell are here for comparison.",
-                                style = MaterialTheme.typography.bodySmall,
+                            FormalBodyText(
+                                "DSATUR is the default — it adapts as it colors and generally produces the fewest wasted timeslots. Greedy and Welsh-Powell are available for comparison.",
                             )
                         }
                     }

@@ -48,9 +48,21 @@ data class ImportResult(
  */
 class CsvImportService(private val database: CromaDatabase) {
 
+    /** Clears the current working dataset only. Saved timetable versions are independent snapshots. */
+    suspend fun clearCurrentData() {
+        database.withTransaction {
+            database.availabilityDao().clear()
+            database.sessionDao().clear()
+            database.sectionDao().clear()
+            database.roomDao().clear()
+            database.subjectDao().clear()
+            database.teacherDao().clear()
+        }
+    }
+
     suspend fun importFromZip(input: InputStream, expectedSessionType: SessionTypeEntity?): ImportResult {
         val entries = ZipCsvReader.readCsvEntries(input)
-        return importFromFiles(entries, expectedSessionType)
+        return importFromFiles(entries, expectedSessionType, replaceExistingData = true)
     }
 
     /**
@@ -63,7 +75,11 @@ class CsvImportService(private val database: CromaDatabase) {
      * Passing null (e.g. from a test or a future "import everything" path) restores the old
      * accept-anything behavior.
      */
-    suspend fun importFromFiles(files: Map<String, String>, expectedSessionType: SessionTypeEntity? = null): ImportResult {
+    suspend fun importFromFiles(
+        files: Map<String, String>,
+        expectedSessionType: SessionTypeEntity? = null,
+        replaceExistingData: Boolean = false,
+    ): ImportResult {
         val allErrors = mutableListOf<CsvValidationError>()
 
         val teachers = files["teachers.csv"]?.let { parseTeachersCsv(it) }
@@ -106,6 +122,14 @@ class CsvImportService(private val database: CromaDatabase) {
         allErrors += crossFileErrors
 
         database.withTransaction {
+            if (replaceExistingData) {
+                database.availabilityDao().clear()
+                database.sessionDao().clear()
+                database.sectionDao().clear()
+                database.roomDao().clear()
+                database.subjectDao().clear()
+                database.teacherDao().clear()
+            }
             teachers?.records?.let { database.teacherDao().upsertAll(it) }
             subjects?.records?.let { database.subjectDao().upsertAll(it) }
             rooms?.records?.let { database.roomDao().upsertAll(it) }

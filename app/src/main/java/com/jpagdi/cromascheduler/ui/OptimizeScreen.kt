@@ -52,6 +52,8 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            item { CromaWorkflowTags(active = "OPTIMIZE") }
+
             when (stage) {
                 OptimizeStage.READY -> {
                     item {
@@ -67,13 +69,13 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 Text("Repair, don't rebuild", style = MaterialTheme.typography.headlineSmall)
-                                Text(
+                                FormalBodyText(
                                     "Keep the timetable that was already handed in. Chroma will first repair hard conflicts caused by changed teacher availability or time preferences, then look for small quality improvements.",
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
-                                Text(
+                                FormalBodyText(
                                     "Teacher and subject assignments stay intact. When two people can exchange slots, Chroma can perform a direct swap instead of reshuffling the school.",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
                             }
                         }
@@ -85,9 +87,8 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Text("Change budget", style = MaterialTheme.typography.titleLarge)
-                                Text(
+                                FormalBodyText(
                                     "Maximum number of assignment moves. Lower values protect the submitted schedule more aggressively.",
-                                    style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -147,12 +148,12 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
                                     if (finalViolations.isEmpty()) "Optimization complete" else "Optimization needs review",
                                     style = MaterialTheme.typography.headlineSmall,
                                 )
-                                Text(
+                                FormalBodyText(
                                     if (finalViolations.isEmpty())
                                         "The resulting timetable was re-validated with no hard conflicts."
                                     else
                                         "${finalViolations.size} conflict(s) remain. Nothing was silently accepted.",
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (finalViolations.isEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
                                 )
                             }
                         }
@@ -182,12 +183,11 @@ fun OptimizeScreen(runId: String, onBack: () -> Unit, onViewTimetable: (runId: S
                                         "Conflicts after: ${result.violationsAfter}",
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    Text(
+                                    FormalBodyText(
                                         if (result.changes == 0)
                                             "No change was necessary. The existing timetable was already the best result found within the selected budget."
                                         else
                                             "${result.changes} assignment move(s) were made${if (result.swaps > 0) ", including ${result.swaps} direct swap(s)" else ""}.",
-                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 }
                             }

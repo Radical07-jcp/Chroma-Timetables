@@ -66,6 +66,7 @@ fun RepairScreen(runId: String, onBack: () -> Unit, onOptimize: (runId: String) 
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            CromaWorkflowTags(active = "VALIDATE")
             when (stage) {
                 RepairStage.REVIEW_ORIGINAL -> {
                     if (viewModel.operationState is OperationUiState.Running) {

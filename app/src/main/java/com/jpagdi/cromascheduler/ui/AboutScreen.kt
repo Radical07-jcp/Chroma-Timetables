@@ -45,7 +45,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 )
             }
             Text("Chroma Timetables", style = MaterialTheme.typography.headlineSmall)
-            Text("Chroma Engine v1.0.0", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Chroma Engine v1.0.1", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Developed by Sir_JPagdi", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Card(
@@ -57,11 +57,9 @@ fun AboutScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About the scheduling engine", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Chroma schedules everything using graph coloring (Greedy, Welsh-Powell, and DSATUR) " +
-                            "plus deterministic constraint checking. Every schedule is built entirely on this device, " +
-                            "and running the same data through the same algorithm always produces the same result.",
-                        style = MaterialTheme.typography.bodySmall,
+                    FormalBodyText(
+                        "Chroma schedules everything using graph coloring (Greedy, Welsh-Powell, and DSATUR) plus deterministic constraint checking. Every schedule is built entirely on this device, and running the same data through the same algorithm always produces the same result.",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
             }

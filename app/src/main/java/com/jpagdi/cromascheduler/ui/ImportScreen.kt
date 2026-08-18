@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +33,7 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
     val container = LocalAppContainer.current
     val viewModel: ImportViewModel = viewModel(factory = ViewModelFactory(container))
     val context = LocalContext.current
+    var confirmClear by remember { mutableStateOf(false) }
 
     val zipLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.importZip(context, uri, sessionType)
@@ -44,9 +47,9 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                "Bring teachers.csv, subjects.csv, rooms.csv, sections.csv, sessions.csv, and availability.csv — one zip with all six, or pick the files individually. Any session row that isn't ${sessionType.label()} gets skipped rather than imported, so this stays a clean ${sessionType.label()} import.",
-                style = MaterialTheme.typography.bodyMedium,
+            CromaWorkflowTags(active = "PLAN")
+            FormalBodyText(
+                "Bring teachers.csv, subjects.csv, rooms.csv, sections.csv, sessions.csv, and availability.csv — one ZIP with all six, or pick the files individually. Each new ZIP replaces the current working dataset so a new timetable never accidentally reuses an older import. Existing saved timetables are preserved.",
             )
 
             Card(
@@ -56,8 +59,14 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { zipLauncher.launch("application/zip") }) { Text("Choose zip") }
+                        Button(onClick = { zipLauncher.launch("application/zip") }) { Text("Choose new ZIP") }
                         OutlinedButton(onClick = { filesLauncher.launch("text/*") }) { Text("Choose CSV files") }
+                    }
+                    TextButton(
+                        onClick = { confirmClear = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Clear current imported data")
                     }
 
                     when (val state = viewModel.uiState) {
@@ -85,10 +94,10 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         ImportResultView(doneState)
+                        ImportMetricRow(doneState)
                         HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.18f))
-                        Text(
-                            "The imported data is saved locally. Continue to the generation step to build the timetable.",
-                            style = MaterialTheme.typography.bodyMedium,
+                        FormalBodyText(
+                            "The imported data is now the source for this timetable only. Continue to generation; a later timetable can import a completely different ZIP without invalidating this saved timetable.",
                         )
                         Button(
                             onClick = onImported,
@@ -99,6 +108,55 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
                     }
                 }
             }
+        }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear current imported data?") },
+            text = { Text("This clears the working teachers, subjects, rooms, sections, sessions, and availability used for the next generation. Saved timetable versions are not deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = false
+                        viewModel.clearCurrentData()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Clear data") }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun ImportMetricRow(state: ImportUiState.Done) {
+    val r = state.result
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ImportMetric("Teachers", r.teacherCount, Modifier.weight(1f))
+        ImportMetric("Subjects", r.subjectCount, Modifier.weight(1f))
+        ImportMetric("Rooms", r.roomCount, Modifier.weight(1f))
+        ImportMetric("Sections", r.sectionCount, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ImportMetric(label: String, value: Int, modifier: Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(value.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
