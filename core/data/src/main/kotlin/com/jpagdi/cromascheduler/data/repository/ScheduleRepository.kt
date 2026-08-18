@@ -490,6 +490,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
         }
     }
 
+    suspend fun renameRun(runId: String, rawName: String) {
+        val sanitized = sanitizeRunName(rawName)
+        database.scheduleRunDao().renameRun(runId, sanitized)
+    }
+
     /** Home's list — one card per lineage. */
     suspend fun getRootRuns(): List<ScheduleRunEntity> = database.scheduleRunDao().getAllRoots()
 
@@ -646,6 +651,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     companion object {
+        fun sanitizeRunName(rawName: String): String {
+            val trimmed = rawName.trim()
+            return trimmed.ifBlank { "Untitled Timetable" }
+        }
+
         // dayOfWeek follows java.time.DayOfWeek.getValue() convention: 1=Monday .. 7=Sunday.
         private val DAY_NAMES = mapOf(
             1 to "Monday", 2 to "Tuesday", 3 to "Wednesday", 4 to "Thursday",

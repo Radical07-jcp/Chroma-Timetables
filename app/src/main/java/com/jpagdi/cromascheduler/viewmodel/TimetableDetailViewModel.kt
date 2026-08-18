@@ -82,6 +82,13 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         }
     }
 
+    fun renameVersion(runId: String, newName: String) {
+        viewModelScope.launch {
+            repository.renameRun(runId, newName)
+            reload()
+        }
+    }
+
     /** Delete one saved version. Deleting the root removes its whole lineage; deleting a derived
      * version removes only that version, leaving the remaining history intact. */
     fun deleteVersion(runId: String, onDeleted: (() -> Unit)? = null) {

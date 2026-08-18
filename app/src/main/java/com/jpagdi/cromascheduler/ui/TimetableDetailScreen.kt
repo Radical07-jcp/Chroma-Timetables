@@ -6,14 +6,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +63,8 @@ fun TimetableDetailScreen(
 
     var confirmDelete by remember { mutableStateOf(false) }
     var versionToDelete by remember { mutableStateOf<LineageEntry?>(null) }
+    var renameTarget by remember { mutableStateOf<LineageEntry?>(null) }
+    var renameValue by remember { mutableStateOf("") }
     var showExportPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     val root = viewModel.root
@@ -141,6 +144,11 @@ fun TimetableDetailScreen(
                     entry = entry,
                     onView = { onResults(entry.run.id) },
                     onDelete = { versionToDelete = entry },
+                    onRename = {
+                        renameTarget = entry
+                        renameValue = entry.run.name
+                        showMore = false
+                    },
                 )
             }
 
@@ -210,6 +218,19 @@ fun TimetableDetailScreen(
                         Text("Repair latest schedule")
                     }
                     TextButton(
+                        onClick = {
+                            showMore = false
+                            val latestEntry = viewModel.latest ?: return@TextButton
+                            renameTarget = latestEntry
+                            renameValue = latestEntry.run.name
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.Edit, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Rename latest version")
+                    }
+                    TextButton(
                         onClick = { showMore = false; confirmDelete = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -217,6 +238,44 @@ fun TimetableDetailScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showMore = false }) { Text("Close") } },
+        )
+    }
+
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = {
+                renameTarget = null
+                renameValue = ""
+            },
+            title = { Text("Rename timetable") },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (renameTarget != null) {
+                            viewModel.renameVersion(renameTarget!!.run.id, renameValue)
+                        }
+                        renameTarget = null
+                        renameValue = ""
+                    },
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        renameTarget = null
+                        renameValue = ""
+                    },
+                ) { Text("Cancel") }
+            },
         )
     }
 
@@ -248,7 +307,7 @@ fun TimetableDetailScreen(
 }
 
 @Composable
-private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit, onDelete: () -> Unit) {
+private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit) {
     val run = entry.run
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -261,6 +320,9 @@ private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit, onDelete: 
                 Text(run.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 if (entry.conflictCount > 0) StatusPill("${entry.conflictCount} CONFLICTS", CromaStatus.Conflicts)
                 else StatusPill("CLEAN", CromaStatus.Clean)
+                IconButton(onClick = onRename) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Rename version")
+                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Filled.Delete, contentDescription = "Delete version", tint = MaterialTheme.colorScheme.error)
                 }

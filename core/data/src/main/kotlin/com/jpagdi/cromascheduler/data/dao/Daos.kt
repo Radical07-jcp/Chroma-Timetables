@@ -118,6 +118,9 @@ interface ScheduleRunDao {
     @Query("SELECT * FROM schedule_runs WHERE id = :runId LIMIT 1")
     suspend fun getById(runId: String): ScheduleRunEntity?
 
+    @Query("UPDATE schedule_runs SET name = :newName WHERE id = :runId")
+    suspend fun renameRun(runId: String, newName: String)
+
     @Query("SELECT * FROM schedule_runs WHERE sessionType = :type ORDER BY createdAtEpochMillis DESC")
     suspend fun getAllByType(type: SessionTypeEntity): List<ScheduleRunEntity>
 
