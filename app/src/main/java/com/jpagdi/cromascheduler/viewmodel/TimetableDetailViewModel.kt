@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.jpagdi.cromascheduler.data.entity.ConflictRecordEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.repository.ScheduleRepository
 import kotlinx.coroutines.launch
@@ -27,6 +28,8 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
     var deleted by mutableStateOf(false)
         private set
     var busy by mutableStateOf(false)
+        private set
+    var repairConflicts by mutableStateOf<List<ConflictRecordEntity>>(emptyList())
         private set
 
     val root: ScheduleRunEntity? get() = entries.firstOrNull()?.run
@@ -65,27 +68,30 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
     }
 
     /** Repair the latest entry — same in-place-append behavior as optimize. */
-    fun repairLatest() {
+    fun loadRepairConflicts() {
         val target = latest?.run ?: return
+        viewModelScope.launch { repairConflicts = repository.getConflicts(target.id) }
+    }
+
+    fun repairLatest(selectedSessionIds: Set<String>) {
+        val target = latest?.run ?: return
+        if (selectedSessionIds.isEmpty()) return
         viewModelScope.launch {
             busy = true
-            repository.repair(target.id)
+            repository.repair(target.id, selectedSessionIds = selectedSessionIds)
             reload()
             busy = false
         }
+    }
+
+    fun renameVersion(runId: String, name: String) {
+        viewModelScope.launch { repository.renameRun(runId, name); reload() }
     }
 
     fun delete() {
         viewModelScope.launch {
             repository.deleteRun(rootRunId)
             deleted = true
-        }
-    }
-
-    fun renameVersion(runId: String, newName: String) {
-        viewModelScope.launch {
-            repository.renameRun(runId, newName)
-            reload()
         }
     }
 

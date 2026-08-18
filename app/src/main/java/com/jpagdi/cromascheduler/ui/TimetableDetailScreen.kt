@@ -60,14 +60,23 @@ fun TimetableDetailScreen(
     val viewModel: TimetableDetailViewModel = viewModel(factory = TimetableDetailViewModel.factory(container.scheduleRepository, runId))
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(viewModel.deleted) { if (viewModel.deleted) onDeleted() }
-
     var confirmDelete by remember { mutableStateOf(false) }
     var versionToDelete by remember { mutableStateOf<LineageEntry?>(null) }
     var renameTarget by remember { mutableStateOf<LineageEntry?>(null) }
     var renameValue by remember { mutableStateOf("") }
     var showExportPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
+    var showRepairDialog by remember { mutableStateOf(false) }
+    var repairCategory by remember { mutableStateOf("Teacher conflict") }
+    var selectedConflictIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     val root = viewModel.root
+
+    LaunchedEffect(showRepairDialog, viewModel.latest?.run?.id) {
+        if (showRepairDialog) {
+            viewModel.loadRepairConflicts()
+            selectedConflictIds = emptySet()
+        }
+    }
 
     Scaffold(
         topBar = { CromaTopBar(root?.name ?: "Timetable", onBack) },
@@ -206,16 +215,17 @@ fun TimetableDetailScreen(
                     ) {
                         Icon(Icons.Filled.Download, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Export a version")
+                        Text("Export a version", modifier = Modifier.fillMaxWidth())
                     }
                     TextButton(
-                        onClick = { showMore = false; viewModel.repairLatest() },
+                        onClick = { showMore = false; showRepairDialog = true },
                         enabled = !viewModel.busy && viewModel.latest != null,
                         modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                     ) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Repair latest schedule")
+                        Text("Repair schedule", modifier = Modifier.fillMaxWidth())
                     }
                     TextButton(
                         onClick = {
@@ -225,19 +235,80 @@ fun TimetableDetailScreen(
                             renameValue = latestEntry.run.name
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                     ) {
                         Icon(Icons.Filled.Edit, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Rename latest version")
+                        Text("Rename latest version", modifier = Modifier.fillMaxWidth())
                     }
                     TextButton(
                         onClick = { showMore = false; confirmDelete = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) { Text("Delete timetable") }
+                    ) { Text("Delete timetable", modifier = Modifier.fillMaxWidth()) }
                 }
             },
             confirmButton = { TextButton(onClick = { showMore = false }) { Text("Close") } },
+        )
+    }
+
+    if (showRepairDialog) {
+        val categoryTypes = when (repairCategory) {
+            "Teacher conflict" -> setOf("TEACHER_DOUBLE_BOOKED", "TEACHER_UNAVAILABLE")
+            "Time period conflict" -> setOf("DURATION_EXCEEDS_AVAILABLE_PERIODS")
+            "Room conflict" -> setOf("ROOM_DOUBLE_BOOKED", "ROOM_UNAVAILABLE", "ROOM_CAPACITY_EXCEEDED")
+            "Class conflict" -> setOf("SECTION_DOUBLE_BOOKED")
+            else -> setOf("SUBJECT_DOUBLE_BOOKED")
+        }
+        val visibleConflicts = viewModel.repairConflicts.filter { it.conflictType in categoryTypes }
+        AlertDialog(
+            onDismissRequest = { showRepairDialog = false },
+            title = { Text("Repair schedule") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Choose a conflict type, then select the affected conflict(s) to repair.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Teacher conflict", "Time period conflict", "Room conflict").forEach { label ->
+                            FilterChip(selected = repairCategory == label, onClick = { repairCategory = label; selectedConflictIds = emptySet() }, label = { Text(label.substringBefore(" ")) })
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Class conflict", "Subject conflict").forEach { label ->
+                            FilterChip(selected = repairCategory == label, onClick = { repairCategory = label; selectedConflictIds = emptySet() }, label = { Text(label.substringBefore(" ")) })
+                        }
+                    }
+                    if (visibleConflicts.isEmpty()) {
+                        Text("No reported conflicts of this type on the current timetable.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        visibleConflicts.forEach { conflict ->
+                            val checked = conflict.id in selectedConflictIds
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Checkbox(checked = checked, onCheckedChange = {
+                                    selectedConflictIds = if (it) selectedConflictIds + conflict.id else selectedConflictIds - conflict.id
+                                })
+                                Text(conflict.reason, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedConflictIds.isNotEmpty() && !viewModel.busy,
+                    onClick = {
+                        val ids = viewModel.repairConflicts
+                            .filter { it.id in selectedConflictIds }
+                            .flatMap { listOfNotNull(it.sessionAId, it.sessionBId) }
+                            .toSet()
+                        showRepairDialog = false
+                        viewModel.repairLatest(ids)
+                    },
+                ) { Text("Repair selected") }
+            },
+            dismissButton = { TextButton(onClick = { showRepairDialog = false }) { Text("Cancel") } },
         )
     }
 

@@ -52,12 +52,15 @@ object ScheduleOptimizer {
         totalDefinedPeriods: Int,
         maxPasses: Int = 3,
         maxChanges: Int = 12,
+        focusSessionIds: Set<String>? = null,
     ): OptimizationResult {
         val graph = GraphBuilder.buildConflictGraph(input.sessions)
         val sessionById = input.sessions.associateBy { it.id }
         var current = assignments.toMutableMap()
         val original = assignments.toMap()
         val orderedIds = input.sessions.map { it.id }.sorted()
+        val focusedIds = focusSessionIds.orEmpty()
+        val moveIds = if (focusedIds.isEmpty()) orderedIds else orderedIds.filter { it in focusedIds }
 
         fun violationsOf(candidate: Map<String, Timeslot>): Int {
             return ConstraintValidator.validate(
@@ -141,7 +144,7 @@ object ScheduleOptimizer {
             var changedThisPass = false
 
             // First: one-session local moves. These are the smallest possible repair.
-            for (sessionId in orderedIds) {
+            for (sessionId in moveIds) {
                 if (changeCount(current) >= maxChanges) break
                 val session = sessionById[sessionId] ?: continue
                 val from = current[sessionId] ?: continue
@@ -191,6 +194,7 @@ object ScheduleOptimizer {
                         val aWantsB = bFrom in input.availableTimeslotsBySession[aId].orEmpty()
                         val bWantsA = aFrom in input.availableTimeslotsBySession[bId].orEmpty()
                         if (!aWantsB && !bWantsA) continue
+                        if (focusedIds.isNotEmpty() && (aId !in focusedIds || bId !in focusedIds)) continue
                         if (!occupiedFits(a, bFrom, input.availableTimeslotsBySession[aId].orEmpty().toSet())) continue
                         if (!occupiedFits(b, aFrom, input.availableTimeslotsBySession[bId].orEmpty().toSet())) continue
 

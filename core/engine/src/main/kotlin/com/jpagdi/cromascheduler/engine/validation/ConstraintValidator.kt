@@ -59,6 +59,7 @@ object ConstraintValidator {
 
         checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.TEACHER_DOUBLE_BOOKED, violations) { it.teacherId }
         checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.SECTION_DOUBLE_BOOKED, violations) { it.sectionId }
+        checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.SUBJECT_DOUBLE_BOOKED, violations) { it.subjectId }
         checkRoomDoubleBooking(context, occupied, violations)
         checkAvailability(context, occupied, sessionById, violations)
         checkRoomCapacity(context, violations)

@@ -25,7 +25,8 @@ data class RepairResult(
  * conflicts, preserve valid sessions whenever possible, recalculate only the
  * conflicting ones. This is the whole reason ColoringAlgorithm grew a
  * [ColoringAlgorithm.fixedAssignments] parameter in Phase 4 — repair is just a
- * normal coloring run where "valid so far" sessions are pinned in place.
+ * normal coloring run where "valid so far" sessions are pinned in place. When a user selects a
+ * repair scope, only the selected sessions are unlocked; everything else remains pinned.
  */
 object RepairEngine {
     fun repair(
@@ -33,6 +34,7 @@ object RepairEngine {
         existingAssignments: Map<String, Timeslot>,
         existingRoomBySession: Map<String, String>,
         algorithm: ColoringAlgorithm = ColoringAlgorithmRegistry.default,
+        selectedSessionIds: Set<String>? = null,
     ): RepairResult {
         // Step 1: find what's actually broken in the schedule as given.
         val initialViolations = ConstraintValidator.validate(
@@ -48,12 +50,17 @@ object RepairEngine {
             ),
         )
 
-        val conflictingSessionIds = initialViolations
+        val detectedConflictingSessionIds = initialViolations
             .flatMap { listOfNotNull(it.sessionAId, it.sessionBId) }
             .toSet()
-        // Anything the schedule never even assigned a timeslot to also needs (re)coloring.
+        // A scoped repair is explicit: only sessions selected by the user are unlocked.
+        // Unselected sessions remain pinned even when another violation touches them.
         val neverAssigned = input.sessions.map { it.id }.filter { it !in existingAssignments }.toSet()
-        val toRecolor = conflictingSessionIds + neverAssigned
+        val toRecolor = if (selectedSessionIds == null) {
+            detectedConflictingSessionIds + neverAssigned
+        } else {
+            selectedSessionIds.intersect(input.sessions.map { it.id }.toSet())
+        }
         val preserved = existingAssignments.keys - toRecolor
 
         // Step 2: recolor only the broken/missing sessions, with everything else pinned.

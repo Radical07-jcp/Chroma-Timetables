@@ -80,10 +80,11 @@ class ScheduleViewModel(private val repository: ScheduleRepository) : ViewModel(
         }
     }
 
-    fun repair(runId: String, algorithmName: String) {
+    /** [selectedSessionIds] scopes repair to only the sessions the user picked; null repairs every reported conflict. */
+    fun repair(runId: String, algorithmName: String, selectedSessionIds: Set<String>? = null) {
         operationState = OperationUiState.Running
         viewModelScope.launch {
-            runCatching { repository.repair(runId, algorithmName) }
+            runCatching { repository.repair(runId, algorithmName, selectedSessionIds) }
                 .onSuccess { newRunId -> operationState = OperationUiState.RepairDone(newRunId) }
                 .onFailure { e -> operationState = OperationUiState.Failed(e.message ?: "Repair failed") }
         }

@@ -1,3 +1,23 @@
+## v1.0.2 — Repair & Conflict Resolution Patch
+
+### Fixed
+- Added Subject double-booking validation.
+- Added conflict categorization for Teacher, Time Period, Room, Class, and Subject conflicts.
+- Added targeted conflict repair from the timetable detail screen.
+- Repair now allows selecting specific reported conflicts instead of repairing the entire timetable.
+- Scoped repair preserves all unselected sessions and their existing assignments.
+- Scoped room repair preserves rooms assigned to unaffected sessions.
+- Optimizer focus is restricted to the affected sessions during targeted optimization.
+- Optimizer swaps are restricted to sessions inside the selected repair scope.
+- Existing conflict records are cleared before fresh validation results are persisted, preventing stale conflicts from remaining attached to a schedule version.
+- Added conflict loading and selection UI for timetable repair.
+- Preserved existing rename/version behavior while integrating the repair workflow.
+
+### Safety
+- Targeted repair does not unlock unrelated sessions.
+- Targeted optimizer swaps cannot move an unrelated session as the partner of a selected session.
+- Unresolved constraints remain reported after repair rather than being hidden.
+
 # Chroma Engine Changelog
 
 ## [1.0.1] — Full UI/Workflow Revamp

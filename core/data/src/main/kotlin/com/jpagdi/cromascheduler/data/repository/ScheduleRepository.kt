@@ -371,7 +371,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
      * repairing a schedule never changes what periods or type it was built for, only which sessions
      * land where.
      */
-    suspend fun repair(sourceRunId: String, algorithmName: String = ColoringAlgorithmRegistry.default.name): String {
+    suspend fun repair(
+        sourceRunId: String,
+        algorithmName: String = ColoringAlgorithmRegistry.default.name,
+        selectedSessionIds: Set<String>? = null,
+    ): String {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
         val input = if (sourceRun != null) {
             buildSchedulingInputForRun(sourceRun)
@@ -384,7 +388,9 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val algorithm = ColoringAlgorithmRegistry.algorithms[algorithmName] ?: ColoringAlgorithmRegistry.default
 
         val startTime = System.currentTimeMillis()
-        val result: RepairResult = RepairEngine.repair(input, existingAssignments, existingRoomBySession, algorithm)
+        val result: RepairResult = RepairEngine.repair(
+            input, existingAssignments, existingRoomBySession, algorithm, selectedSessionIds = selectedSessionIds,
+        )
         val elapsed = System.currentTimeMillis() - startTime
 
         val runId = UUID.randomUUID().toString()
@@ -430,10 +436,15 @@ class ScheduleRepository(private val database: CromaDatabase) {
         val assignments = savedAssignments.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val roomBySession = savedAssignments.mapNotNull { a -> a.roomId?.let { a.sessionId to it } }.toMap()
         val totalDefinedPeriods = input.definedPeriodsByDay.values.sumOf { it.size }
+        val reportedViolations = validate(sourceRunId)
+        val focusSessionIds = reportedViolations
+            .flatMap { listOfNotNull(it.sessionAId, it.sessionBId) }
+            .toSet()
 
         val startTime = System.currentTimeMillis()
         val result: OptimizationResult = ScheduleOptimizer.optimize(
             input, assignments, roomBySession, input.rooms.size, totalDefinedPeriods, maxPasses, maxChanges,
+            focusSessionIds = focusSessionIds.ifEmpty { null },
         )
         val elapsed = System.currentTimeMillis() - startTime
 
@@ -680,6 +691,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     private suspend fun persistConflicts(runId: String, violations: List<ConstraintViolation>) {
+        database.scheduleRunDao().deleteConflictsFor(runId)
         val entities = violations.map {
             ConflictRecordEntity(
                 scheduleRunId = runId,
