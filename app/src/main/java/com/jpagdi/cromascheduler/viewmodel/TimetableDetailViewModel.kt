@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.jpagdi.cromascheduler.data.entity.ConflictRecordEntity
 import com.jpagdi.cromascheduler.data.entity.ScheduleRunEntity
 import com.jpagdi.cromascheduler.data.repository.ScheduleRepository
 import kotlinx.coroutines.launch
@@ -20,7 +19,12 @@ data class LineageEntry(val run: ScheduleRunEntity, val conflictCount: Int)
  * runId always refers to the root — Validate/Repair/Optimize act on [latest] (the most recent
  * entry), since that's the timetable a person actually means by "this timetable" once history exists.
  */
-class TimetableDetailViewModel(private val repository: ScheduleRepository, private val rootRunId: String) : ViewModel() {
+class TimetableDetailViewModel(private val repository: ScheduleRepository, initialRootRunId: String) : ViewModel() {
+    // Mutable because deleting the root version while other versions still exist promotes a new
+    // root under the same lineage — this keeps pointing reload()/actions at whichever run is
+    // currently the root, instead of the id this screen happened to be opened with.
+    private var currentRootId: String = initialRootRunId
+
     var entries by mutableStateOf<List<LineageEntry>>(emptyList())
         private set
     var loaded by mutableStateOf(false)
@@ -29,7 +33,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
         private set
     var busy by mutableStateOf(false)
         private set
-    var repairConflicts by mutableStateOf<List<ConflictRecordEntity>>(emptyList())
+    var repairConflictDetails by mutableStateOf<List<ScheduleRepository.ConflictDetail>>(emptyList())
         private set
 
     val root: ScheduleRunEntity? get() = entries.firstOrNull()?.run
@@ -40,7 +44,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
     }
 
     private suspend fun reload() {
-        val lineage = repository.getLineage(rootRunId)
+        val lineage = repository.getLineage(currentRootId)
         entries = lineage.map { LineageEntry(it, repository.getConflicts(it.id).size) }
         loaded = true
     }
@@ -70,7 +74,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
     /** Repair the latest entry — same in-place-append behavior as optimize. */
     fun loadRepairConflicts() {
         val target = latest?.run ?: return
-        viewModelScope.launch { repairConflicts = repository.getConflicts(target.id) }
+        viewModelScope.launch { repairConflictDetails = repository.getConflictDetails(target.id) }
     }
 
     fun repairLatest(selectedSessionIds: Set<String>) {
@@ -90,18 +94,29 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, priva
 
     fun delete() {
         viewModelScope.launch {
-            repository.deleteRun(rootRunId)
+            repository.deleteRun(currentRootId)
             deleted = true
         }
     }
 
-    /** Delete one saved version. Deleting the root removes its whole lineage; deleting a derived
-     * version removes only that version, leaving the remaining history intact. */
+    /**
+     * Delete one saved version. If it's a derived (non-root) version, only that entry goes away
+     * and the rest of the history is untouched. If it's the root and other versions still exist,
+     * the lineage survives on the next-oldest version — [currentRootId] follows that promotion so
+     * the screen keeps showing this timetable instead of navigating away. [deleted] (and
+     * [onDeleted]) only fire when this was truly the last version left.
+     */
     fun deleteVersion(runId: String, onDeleted: (() -> Unit)? = null) {
         viewModelScope.launch {
-            repository.deleteRun(runId)
-            reload()
-            onDeleted?.invoke()
+            val newRootId = repository.deleteVersion(runId)
+            if (newRootId == null) {
+                deleted = true
+                onDeleted?.invoke()
+            } else {
+                currentRootId = newRootId
+                reload()
+                onDeleted?.invoke()
+            }
         }
     }
 

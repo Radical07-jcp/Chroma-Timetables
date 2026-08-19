@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,9 +44,17 @@ fun ImportScreen(sessionType: SessionTypeEntity, onBack: () -> Unit, onImported:
         if (uris.isNotEmpty()) viewModel.importCsvFiles(context, uris, sessionType)
     }
 
+    val scrollState = rememberScrollState()
     Scaffold(topBar = { CromaTopBar("Import ${sessionType.label()} Data", onBack) }) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                // The success card (result summary + metrics + error list + Continue button) can
+                // exceed the viewport height, which was pushing "Continue to Generate" off-screen
+                // with no way to reach it. Scrolling keeps the button reachable on every screen size.
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CromaWorkflowTags(active = "PLAN")

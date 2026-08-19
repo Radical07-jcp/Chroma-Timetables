@@ -546,6 +546,46 @@ class ScheduleRepository(private val database: CromaDatabase) {
         }
     }
 
+    /**
+     * Deletes exactly one version from a lineage's timeline, and only that one. If [runId] is
+     * the lineage ROOT and other versions (Validate/Repair/Optimize entries) still exist under
+     * it, the root's own data is removed but the lineage survives: the oldest remaining version
+     * is promoted to be the new root (its rootRunId cleared) and every other sibling is
+     * re-pointed at that new root's id, so Home keeps showing one card for the lineage. Deleting
+     * the root only takes the whole timetable down with it when it was the last version left —
+     * "as long as there's an active version, the timetable exists."
+     *
+     * Returns the id that now identifies this lineage's root (unchanged if a non-root version
+     * was deleted, the newly-promoted root's id if the root was deleted with survivors, or null
+     * if the whole lineage is now gone).
+     */
+    suspend fun deleteVersion(runId: String): String? {
+        return database.withTransaction {
+            val run = database.scheduleRunDao().getById(runId) ?: return@withTransaction null
+            val isRoot = run.rootRunId == null
+            val resultRootId: String? = if (isRoot) {
+                val siblings = database.scheduleRunDao().getLineage(runId).filter { it.id != runId }
+                if (siblings.isNotEmpty()) {
+                    val newRoot = siblings.minByOrNull { it.createdAtEpochMillis }!!
+                    database.scheduleRunDao().upsert(newRoot.copy(rootRunId = null))
+                    for (sibling in siblings) {
+                        if (sibling.id == newRoot.id) continue
+                        database.scheduleRunDao().upsert(sibling.copy(rootRunId = newRoot.id))
+                    }
+                    newRoot.id
+                } else {
+                    null
+                }
+            } else {
+                run.rootRunId
+            }
+            database.scheduleRunDao().deleteAssignmentsFor(runId)
+            database.scheduleRunDao().deleteConflictsFor(runId)
+            database.scheduleRunDao().deleteRun(runId)
+            resultRootId
+        }
+    }
+
     suspend fun getTeachers(): List<com.jpagdi.cromascheduler.data.entity.TeacherEntity> = database.teacherDao().getAll()
 
     /** Whether Generate has anything to work with yet for [type] — GenerateScreen uses this to point someone at Import Data instead of letting them tap Generate against zero sessions. */
@@ -657,6 +697,75 @@ class ScheduleRepository(private val database: CromaDatabase) {
                 dayLabel = DAY_NAMES[a.dayOfWeek] ?: "Day ${a.dayOfWeek}",
                 startTime = timeslot?.startTime ?: "Period ${a.periodIndex}",
                 endTime = timeslot?.endTime.orEmpty(),
+            )
+        }
+    }
+
+    /**
+     * One side of a conflict, resolved to display names — what the guided Repair dialog groups
+     * by (teacher/room/class/subject), instead of showing raw session ids or one flat message.
+     */
+    data class ConflictParticipant(
+        val sessionId: String,
+        val teacherId: String?,
+        val teacherName: String?,
+        val roomId: String?,
+        val roomName: String?,
+        val sectionId: String?,
+        val sectionName: String?,
+        val subjectId: String?,
+        val subjectName: String?,
+    )
+
+    data class ConflictDetail(
+        val id: Long,
+        val conflictType: String,
+        val reason: String,
+        val sessionA: ConflictParticipant,
+        val sessionB: ConflictParticipant?,
+    )
+
+    /**
+     * [runId]'s conflicts joined with each side's teacher/room/class/subject names. Powers the
+     * guided Repair flow: pick an entity kind (teacher/room/class/subject) -> pick which specific
+     * ones are affected -> pick which conflict kind on their schedule to fix (time/room/class/
+     * subject) -> repair only the sessions behind that exact selection.
+     */
+    suspend fun getConflictDetails(runId: String): List<ConflictDetail> {
+        val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
+        val conflicts = database.scheduleRunDao().getConflictsFor(runId)
+        if (conflicts.isEmpty()) return emptyList()
+        val assignments = database.scheduleRunDao().getAssignmentsFor(runId).associateBy { it.sessionId }
+        val snapshot = snapshotFrom(run.sourceSnapshotEncoded)
+        val sessions = (snapshot?.sessions ?: database.sessionDao().getAll()).associateBy { it.id }
+        val subjects = (snapshot?.subjects ?: database.subjectDao().getAll()).associateBy { it.id }
+        val teachers = (snapshot?.teachers ?: database.teacherDao().getAll()).associateBy { it.id }
+        val sections = (snapshot?.sections ?: database.sectionDao().getAll()).associateBy { it.id }
+        val rooms = (snapshot?.rooms ?: database.roomDao().getAll()).associateBy { it.id }
+
+        fun participant(sessionId: String): ConflictParticipant {
+            val session = sessions[sessionId]
+            val roomId = assignments[sessionId]?.roomId
+            return ConflictParticipant(
+                sessionId = sessionId,
+                teacherId = session?.teacherId,
+                teacherName = session?.teacherId?.let { teachers[it]?.name },
+                roomId = roomId,
+                roomName = roomId?.let { rooms[it]?.name },
+                sectionId = session?.sectionId,
+                sectionName = session?.sectionId?.let { sections[it]?.name },
+                subjectId = session?.subjectId,
+                subjectName = session?.subjectId?.let { subjects[it]?.name },
+            )
+        }
+
+        return conflicts.map { c ->
+            ConflictDetail(
+                id = c.id,
+                conflictType = c.conflictType,
+                reason = c.reason,
+                sessionA = participant(c.sessionAId),
+                sessionB = c.sessionBId?.let { participant(it) },
             )
         }
     }

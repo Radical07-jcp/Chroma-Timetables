@@ -70,6 +70,28 @@ class ConstraintValidatorTest {
     }
 
     @Test
+    fun `does not flag two different sections sharing a subject at the same time`() {
+        // Two different sections both studying "SUBJ" during the same period, with different
+        // teachers/rooms, is completely normal timetabling — not a conflict.
+        val sessions = listOf(session("S1", teacherId = "T1", sectionId = "SEC1"), session("S2", teacherId = "T2", sectionId = "SEC2"))
+        val assignments = mapOf("S1" to Timeslot(1, 0), "S2" to Timeslot(1, 0))
+        val violations = ConstraintValidator.validate(
+            ValidationContext(sessions, assignments, emptyMap(), emptyList(), emptyMap(), emptyMap(), emptyMap(), definedPeriods),
+        )
+        assertTrue(violations.none { it.type == ConstraintViolationType.SUBJECT_DOUBLE_BOOKED })
+    }
+
+    @Test
+    fun `flags the same section double-booked into the same subject at overlapping times`() {
+        val sessions = listOf(session("S1", teacherId = "T1", sectionId = "SEC1"), session("S2", teacherId = "T2", sectionId = "SEC1"))
+        val assignments = mapOf("S1" to Timeslot(1, 0), "S2" to Timeslot(1, 0))
+        val violations = ConstraintValidator.validate(
+            ValidationContext(sessions, assignments, emptyMap(), emptyList(), emptyMap(), emptyMap(), emptyMap(), definedPeriods),
+        )
+        assertTrue(violations.any { it.type == ConstraintViolationType.SUBJECT_DOUBLE_BOOKED })
+    }
+
+    @Test
     fun `a fully valid schedule produces no violations`() {
         val sessions = listOf(session("S1", teacherId = "T1", sectionId = "SEC1"), session("S2", teacherId = "T2", sectionId = "SEC2"))
         val assignments = mapOf("S1" to Timeslot(1, 0), "S2" to Timeslot(1, 1))

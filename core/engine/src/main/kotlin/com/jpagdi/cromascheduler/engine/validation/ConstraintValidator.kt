@@ -59,7 +59,18 @@ object ConstraintValidator {
 
         checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.TEACHER_DOUBLE_BOOKED, violations) { it.teacherId }
         checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.SECTION_DOUBLE_BOOKED, violations) { it.sectionId }
-        checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.SUBJECT_DOUBLE_BOOKED, violations) { it.subjectId }
+        // NOT grouped by subjectId alone — a subject isn't a scarce shared resource the way a
+        // teacher/room/section is, so two different sections legitimately have the same subject
+        // (e.g. both studying Math) at the same period all the time; that used to get flagged as
+        // a "conflict" here, flooding real timetables with violations that can't be fixed (and
+        // shouldn't be). What IS a real anomaly: the SAME section double-booked into the SAME
+        // subject at overlapping times (e.g. a duplicate/erroneous session), so this groups by
+        // the (section, subject) pair instead.
+        checkSharedResourceDoubleBooking(context.sessions, occupied, ConstraintViolationType.SUBJECT_DOUBLE_BOOKED, violations) { session ->
+            val sectionId = session.sectionId
+            val subjectId = session.subjectId
+            if (sectionId != null && subjectId != null) "$sectionId::$subjectId" else null
+        }
         checkRoomDoubleBooking(context, occupied, violations)
         checkAvailability(context, occupied, sessionById, violations)
         checkRoomCapacity(context, violations)
@@ -82,9 +93,17 @@ object ConstraintValidator {
                     val occA = occupied[a.id] ?: continue
                     val occB = occupied[b.id] ?: continue
                     if (occA.intersect(occB).isNotEmpty()) {
+                        val resourceLabel = if (type == ConstraintViolationType.SUBJECT_DOUBLE_BOOKED) {
+                            // resourceIdOf here is the composite "sectionId::subjectId" grouping
+                            // key, not something to show verbatim — describe it in terms of the
+                            // actual subject instead.
+                            "subject \"${a.subjectId}\""
+                        } else {
+                            "${describe(type)} \"${resourceIdOf(a)}\""
+                        }
                         violations += ConstraintViolation(
                             type, a.id, b.id,
-                            message = "Sessions \"${a.id}\" and \"${b.id}\" overlap on ${describe(type)} \"${resourceIdOf(a)}\"",
+                            message = "Sessions \"${a.id}\" and \"${b.id}\" overlap on $resourceLabel",
                         )
                     }
                 }

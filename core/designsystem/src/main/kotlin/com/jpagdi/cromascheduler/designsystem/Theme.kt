@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 
 val LocalHeaderAccent = compositionLocalOf { CromaColors.Maroon }
 val LocalButtonAccent = compositionLocalOf { CromaColors.Gold }
+val LocalThemeMode = compositionLocalOf { ThemeMode.LIGHT }
 
 private fun colorsFor(mode: ThemeMode, buttonAccent: Color, panelAccent: Color) = when (mode) {
     ThemeMode.LIGHT -> lightColorScheme(
@@ -124,6 +125,7 @@ fun CromaSchedulerTheme(
     CompositionLocalProvider(
         LocalHeaderAccent provides headerAccent,
         LocalButtonAccent provides groupB,
+        LocalThemeMode provides resolvedMode,
     ) {
         MaterialTheme(
             colorScheme = colorsFor(resolvedMode, groupB, groupA),
@@ -132,4 +134,16 @@ fun CromaSchedulerTheme(
             content = content,
         )
     }
+}
+
+/**
+ * The color used to flag a validation conflict directly on the timetable — red on the Light
+ * theme (readable against the cream surface), and the same green as the TIMETABLES wordmark on
+ * Dark/Black (red reads poorly on near-black surfaces, and the wordmark green is already the
+ * app's established "this needs attention on a dark surface" color).
+ */
+@Composable
+fun conflictHighlightColor(): Color = when (LocalThemeMode.current) {
+    ThemeMode.LIGHT -> CromaStatus.Conflicts
+    ThemeMode.DARK, ThemeMode.BLACK -> CromaColors.WordmarkGreen
 }

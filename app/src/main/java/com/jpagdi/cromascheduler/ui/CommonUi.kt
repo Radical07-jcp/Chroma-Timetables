@@ -8,14 +8,21 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import com.jpagdi.cromascheduler.R
+import com.jpagdi.cromascheduler.designsystem.CromaColors
 import com.jpagdi.cromascheduler.designsystem.LocalHeaderAccent
 import com.jpagdi.cromascheduler.designsystem.PressStart2PFamily
 import com.jpagdi.cromascheduler.engine.validation.ConstraintViolation
@@ -97,6 +104,24 @@ fun CromaHomeHeader(
 
 @Composable
 fun BrandWordmark(modifier: Modifier = Modifier) {
+    val density = LocalDensity.current
+    // Measure CHROMA's rendered width so TIMETABLES can be stretched to match it via
+    // letter-spacing; if the natural TIMETABLES width still doesn't land exactly on
+    // that width, the remainder is centered within CHROMA's span rather than left-aligned.
+    var chromaWidthPx by remember { mutableStateOf(0) }
+    var timetablesBaseWidthPx by remember { mutableStateOf(0) }
+
+    val baseLetterSpacingSp = 1.0f
+    val timetablesCharCount = "TIMETABLES".length
+    val stretchedLetterSpacingSp = if (chromaWidthPx > 0 && timetablesBaseWidthPx > 0) {
+        val deltaPx = chromaWidthPx - timetablesBaseWidthPx
+        // px -> sp manually (sp is affected by both density and font scale, unlike dp).
+        val deltaSp = deltaPx / (density.density * density.fontScale)
+        (baseLetterSpacingSp + deltaSp / timetablesCharCount).coerceAtLeast(0f)
+    } else {
+        baseLetterSpacingSp
+    }
+
     Column(modifier = modifier) {
         Text(
             "CHROMA",
@@ -105,16 +130,47 @@ fun BrandWordmark(modifier: Modifier = Modifier) {
             fontSize = 17.sp,
             lineHeight = 17.sp,
             letterSpacing = 0.5.sp,
+            onTextLayout = { result -> chromaWidthPx = result.size.width },
         )
-        Text(
-            "TIMETABLES",
-            color = Color(0xFF64E8C1),
-            fontFamily = PressStart2PFamily,
-            fontSize = 8.6.sp,
-            lineHeight = 9.sp,
-            letterSpacing = 1.0.sp,
-            modifier = Modifier.padding(top = 3.dp),
-        )
+        Box(
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .then(
+                    if (chromaWidthPx > 0) {
+                        Modifier.width(with(density) { chromaWidthPx.toDp() })
+                    } else {
+                        Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "TIMETABLES",
+                color = CromaColors.WordmarkGreen,
+                fontFamily = PressStart2PFamily,
+                fontSize = 8.6.sp,
+                lineHeight = 9.sp,
+                letterSpacing = baseLetterSpacingSp.sp,
+                softWrap = false,
+                textAlign = TextAlign.Center,
+                onTextLayout = { result ->
+                    // Only capture the width measured at the base (unstretched) spacing so the
+                    // stretch calculation above doesn't feed back into itself.
+                    if (timetablesBaseWidthPx == 0) timetablesBaseWidthPx = result.size.width
+                },
+                modifier = Modifier.alpha(0f),
+            )
+            Text(
+                "TIMETABLES",
+                color = CromaColors.WordmarkGreen,
+                fontFamily = PressStart2PFamily,
+                fontSize = 8.6.sp,
+                lineHeight = 9.sp,
+                letterSpacing = stretchedLetterSpacingSp.sp,
+                softWrap = false,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -125,7 +181,7 @@ fun CromaWorkflowTags(active: String? = null, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         WorkflowTag("PLAN", Color(0xFFFFB511), active == "PLAN")
-        WorkflowTag("VALIDATE", Color(0xFF64E8C1), active == "VALIDATE")
+        WorkflowTag("VALIDATE", CromaColors.WordmarkGreen, active == "VALIDATE")
         WorkflowTag("OPTIMIZE", Color(0xFF8AA8FF), active == "OPTIMIZE")
     }
 }

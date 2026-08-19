@@ -33,6 +33,9 @@ object CromaColors {
 
     val CardStrokeOnLight = Color(0x16000000)
     val CardStrokeOnDark = Color(0x22FFFFFF)
+
+    /** The TIMETABLES wordmark's green — reused as-is for dark/black conflict highlighting. */
+    val WordmarkGreen = Color(0xFF64E8C1)
 }
 
 object CromaAccents {

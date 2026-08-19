@@ -1,5 +1,6 @@
 package com.jpagdi.cromascheduler.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,13 +59,13 @@ fun ResultsScreen(runId: String, onBack: () -> Unit, onExport: (runId: String, r
             }
 
             when (tab) {
-                ResultsTab.WEEKLY -> GroupedTimetable(viewModel.rows) { it.dayLabel }
-                ResultsTab.DAILY -> DailyTimetable(viewModel.rows)
-                ResultsTab.TEACHER -> GroupedTimetable(viewModel.rows) { it.teacherName }
-                ResultsTab.CLASS -> GroupedTimetable(viewModel.rows) { it.sectionName }
-                ResultsTab.SUBJECT -> GroupedTimetable(viewModel.rows) { it.subjectName }
-                ResultsTab.PERIOD -> GroupedTimetable(viewModel.rows) { "${it.startTime}–${it.endTime}" }
-                ResultsTab.ROOM -> GroupedTimetable(viewModel.rows) { it.roomName }
+                ResultsTab.WEEKLY -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { it.dayLabel }
+                ResultsTab.DAILY -> DailyTimetable(viewModel.rows, viewModel.conflictedSessionIds)
+                ResultsTab.TEACHER -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { it.teacherName }
+                ResultsTab.CLASS -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { it.sectionName }
+                ResultsTab.SUBJECT -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { it.subjectName }
+                ResultsTab.PERIOD -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { "${it.startTime}–${it.endTime}" }
+                ResultsTab.ROOM -> GroupedTimetable(viewModel.rows, viewModel.conflictedSessionIds) { it.roomName }
             }
         }
     }
@@ -92,20 +93,20 @@ private fun StatisticsCard(viewModel: ResultsViewModel) {
 }
 
 @Composable
-private fun GroupedTimetable(rows: List<ScheduleExportRow>, groupKey: (ScheduleExportRow) -> String) {
+private fun GroupedTimetable(rows: List<ScheduleExportRow>, conflictedSessionIds: Set<String>, groupKey: (ScheduleExportRow) -> String) {
     val grouped = remember(rows) { rows.groupBy(groupKey) }
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
         grouped.forEach { (key, groupRows) ->
             item {
                 Text(key, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             }
-            items(groupRows) { row -> SessionRow(row) }
+            items(groupRows) { row -> SessionRow(row, isConflicted = row.sessionId in conflictedSessionIds) }
         }
     }
 }
 
 @Composable
-private fun DailyTimetable(rows: List<ScheduleExportRow>) {
+private fun DailyTimetable(rows: List<ScheduleExportRow>, conflictedSessionIds: Set<String>) {
     val days = remember(rows) { rows.map { it.dayLabel }.distinct() }
     if (days.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("No sessions scheduled.") }
@@ -120,25 +121,36 @@ private fun DailyTimetable(rows: List<ScheduleExportRow>) {
             }
         }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
-            items(rows.filter { it.dayLabel == selectedDay }) { row -> SessionRow(row) }
+            items(rows.filter { it.dayLabel == selectedDay }) { row -> SessionRow(row, isConflicted = row.sessionId in conflictedSessionIds) }
         }
     }
 }
 
 @Composable
-private fun SessionRow(row: ScheduleExportRow) {
+private fun SessionRow(row: ScheduleExportRow, isConflicted: Boolean) {
+    val conflictColor = com.jpagdi.cromascheduler.designsystem.conflictHighlightColor()
+    val titleColor = if (isConflicted) conflictColor else MaterialTheme.colorScheme.primary
+    val bodyColor = if (isConflicted) conflictColor else MaterialTheme.colorScheme.onSurface
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = if (isConflicted) BorderStroke(1.dp, conflictColor.copy(alpha = 0.6f)) else null,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("${row.subjectName} (${row.sessionType})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("${row.subjectName} (${row.sessionType})", style = MaterialTheme.typography.titleSmall, color = titleColor)
+                if (isConflicted) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("CONFLICT", style = MaterialTheme.typography.labelSmall, color = conflictColor)
+                }
+            }
             Text(
                 "${row.teacherName} • ${row.sectionName} • ${row.roomName}",
                 style = MaterialTheme.typography.bodySmall,
+                color = bodyColor,
             )
-            Text("${row.dayLabel}, ${row.startTime}–${row.endTime}", style = MaterialTheme.typography.bodySmall)
+            Text("${row.dayLabel}, ${row.startTime}–${row.endTime}", style = MaterialTheme.typography.bodySmall, color = bodyColor)
         }
     }
 }

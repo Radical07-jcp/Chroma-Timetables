@@ -11,8 +11,8 @@ android {
         applicationId = "com.jpagdi.cromascheduler"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.1" // Full UI/workflow revamp
+        versionCode = 4
+        versionName = "1.0.3" // Wordmark alignment, import success scroll fix, non-cascading version delete, conflict highlighting, subject-conflict false-positive fix, guided repair wizard
     }
 
     buildFeatures {

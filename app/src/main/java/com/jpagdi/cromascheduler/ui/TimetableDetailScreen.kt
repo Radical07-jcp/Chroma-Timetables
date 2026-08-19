@@ -1,5 +1,6 @@
 package com.jpagdi.cromascheduler.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -67,14 +68,19 @@ fun TimetableDetailScreen(
     var showExportPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     var showRepairDialog by remember { mutableStateOf(false) }
-    var repairCategory by remember { mutableStateOf("Teacher conflict") }
-    var selectedConflictIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var repairWizardStep by remember { mutableStateOf(1) }
+    var repairEntityKind by remember { mutableStateOf(RepairEntityKind.TEACHER) }
+    var selectedRepairEntityIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedRepairConflictKinds by remember { mutableStateOf<Set<RepairConflictKind>>(emptySet()) }
     val root = viewModel.root
 
     LaunchedEffect(showRepairDialog, viewModel.latest?.run?.id) {
         if (showRepairDialog) {
             viewModel.loadRepairConflicts()
-            selectedConflictIds = emptySet()
+            repairWizardStep = 1
+            repairEntityKind = RepairEntityKind.TEACHER
+            selectedRepairEntityIds = emptySet()
+            selectedRepairConflictKinds = emptySet()
         }
     }
 
@@ -166,25 +172,28 @@ fun TimetableDetailScreen(
 
     if (versionToDelete != null) {
         val target = versionToDelete!!
+        val isRoot = target.run.id == root?.id
+        val isLastVersion = viewModel.entries.size == 1
         AlertDialog(
             onDismissRequest = { versionToDelete = null },
-            title = { Text(if (target.run.id == root?.id) "Delete this timetable?" else "Delete this version?") },
+            title = { Text(if (isRoot && isLastVersion) "Delete this timetable?" else "Delete this version?") },
             text = {
                 Text(
-                    if (target.run.id == root?.id)
-                        "This is the original timetable. Deleting it removes the entire timetable history."
-                    else
-                        "This removes only this saved version. Other versions in the timetable history remain available.",
+                    when {
+                        isRoot && isLastVersion ->
+                            "This is the only saved version. Deleting it removes the entire timetable."
+                        isRoot ->
+                            "This removes the original entry only. The timetable stays, continuing from its next saved version."
+                        else ->
+                            "This removes only this saved version. Other versions in the timetable history remain available."
+                    },
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val isRoot = target.run.id == root?.id
                         versionToDelete = null
-                        viewModel.deleteVersion(target.run.id) {
-                            if (isRoot) onDeleted()
-                        }
+                        viewModel.deleteVersion(target.run.id)
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text("Delete") }
@@ -253,62 +262,167 @@ fun TimetableDetailScreen(
     }
 
     if (showRepairDialog) {
-        val categoryTypes = when (repairCategory) {
-            "Teacher conflict" -> setOf("TEACHER_DOUBLE_BOOKED", "TEACHER_UNAVAILABLE")
-            "Time period conflict" -> setOf("DURATION_EXCEEDS_AVAILABLE_PERIODS")
-            "Room conflict" -> setOf("ROOM_DOUBLE_BOOKED", "ROOM_UNAVAILABLE", "ROOM_CAPACITY_EXCEEDED")
-            "Class conflict" -> setOf("SECTION_DOUBLE_BOOKED")
-            else -> setOf("SUBJECT_DOUBLE_BOOKED")
+        val details = viewModel.repairConflictDetails
+
+        // Step 1 -> which specific teachers/rooms/classes/subjects actually show up in a
+        // conflict, so step 2 only ever lists entities that are really affected.
+        val affectedEntities = remember(details, repairEntityKind) {
+            val ids = LinkedHashMap<String, String>() // id -> display name, insertion order
+            details.forEach { d ->
+                listOfNotNull(d.sessionA, d.sessionB).forEach { p ->
+                    val id = p.idFor(repairEntityKind)
+                    val name = p.nameFor(repairEntityKind)
+                    if (id != null && name != null) ids.putIfAbsent(id, name)
+                }
+            }
+            ids.toList() // List<Pair<id, name>>
         }
-        val visibleConflicts = viewModel.repairConflicts.filter { it.conflictType in categoryTypes }
+
+        // Step 2 -> conflicts touching at least one selected entity, broken down by kind
+        // (time/room/class/subject) so step 3 can show a real count next to each option.
+        val conflictsForSelectedEntities = remember(details, repairEntityKind, selectedRepairEntityIds) {
+            details.filter { d ->
+                listOfNotNull(d.sessionA, d.sessionB).any { p -> p.idFor(repairEntityKind) in selectedRepairEntityIds }
+            }
+        }
+        val kindCounts = remember(conflictsForSelectedEntities) {
+            RepairConflictKind.entries.associateWith { kind -> conflictsForSelectedEntities.count { it.kind() == kind } }
+        }
+
+        val finalMatches = remember(conflictsForSelectedEntities, selectedRepairConflictKinds) {
+            conflictsForSelectedEntities.filter { it.kind() in selectedRepairConflictKinds }
+        }
+        val finalSessionIds = remember(finalMatches) {
+            finalMatches.flatMap { listOfNotNull(it.sessionA.sessionId, it.sessionB?.sessionId) }.toSet()
+        }
+
         AlertDialog(
             onDismissRequest = { showRepairDialog = false },
-            title = { Text("Repair schedule") },
+            title = {
+                Text(
+                    when (repairWizardStep) {
+                        1 -> "Repair schedule — 1. Conflict type"
+                        2 -> "Repair schedule — 2. Affected ${repairEntityKind.label.lowercase()}s"
+                        else -> "Repair schedule — 3. What to fix"
+                    },
+                )
+            },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text("Choose a conflict type, then select the affected conflict(s) to repair.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Teacher conflict", "Time period conflict", "Room conflict").forEach { label ->
-                            FilterChip(selected = repairCategory == label, onClick = { repairCategory = label; selectedConflictIds = emptySet() }, label = { Text(label.substringBefore(" ")) })
+                    when (repairWizardStep) {
+                        1 -> {
+                            Text("Choose which kind of entity is involved in the conflict you want to fix.")
+                            RepairEntityKind.entries.forEach { kind ->
+                                val count = remember(details, kind) {
+                                    details.flatMap { listOfNotNull(it.sessionA, it.sessionB) }
+                                        .mapNotNull { it.idFor(kind) }.distinct().size
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = count > 0) { repairEntityKind = kind },
+                                ) {
+                                    RadioButton(selected = repairEntityKind == kind, onClick = { repairEntityKind = kind }, enabled = count > 0)
+                                    Text(
+                                        if (count > 0) "${kind.label} (${count} affected)" else "${kind.label} — none affected",
+                                        color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                         }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Class conflict", "Subject conflict").forEach { label ->
-                            FilterChip(selected = repairCategory == label, onClick = { repairCategory = label; selectedConflictIds = emptySet() }, label = { Text(label.substringBefore(" ")) })
+                        2 -> {
+                            Text("Select which specific ${repairEntityKind.label.lowercase()}(s) you want to repair. Everything else stays exactly as it is.")
+                            if (affectedEntities.isEmpty()) {
+                                Text("No ${repairEntityKind.label.lowercase()} is currently involved in a conflict.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                affectedEntities.forEach { (id, name) ->
+                                    val checked = id in selectedRepairEntityIds
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedRepairEntityIds = if (checked) selectedRepairEntityIds - id else selectedRepairEntityIds + id
+                                            },
+                                    ) {
+                                        Checkbox(checked = checked, onCheckedChange = {
+                                            selectedRepairEntityIds = if (it) selectedRepairEntityIds + id else selectedRepairEntityIds - id
+                                        })
+                                        Text(name, modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
                         }
-                    }
-                    if (visibleConflicts.isEmpty()) {
-                        Text("No reported conflicts of this type on the current timetable.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        visibleConflicts.forEach { conflict ->
-                            val checked = conflict.id in selectedConflictIds
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                Checkbox(checked = checked, onCheckedChange = {
-                                    selectedConflictIds = if (it) selectedConflictIds + conflict.id else selectedConflictIds - conflict.id
-                                })
-                                Text(conflict.reason, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        else -> {
+                            Text(
+                                "Choose which kind of conflict on the selected ${repairEntityKind.label.lowercase()}(s)' schedule to fix. Only sessions behind these selections change — the rest of the timetable is untouched.",
+                            )
+                            RepairConflictKind.entries.forEach { kind ->
+                                val count = kindCounts[kind] ?: 0
+                                val checked = kind in selectedRepairConflictKinds
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = count > 0) {
+                                            selectedRepairConflictKinds = if (checked) selectedRepairConflictKinds - kind else selectedRepairConflictKinds + kind
+                                        },
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        enabled = count > 0,
+                                        onCheckedChange = {
+                                            selectedRepairConflictKinds = if (it) selectedRepairConflictKinds + kind else selectedRepairConflictKinds - kind
+                                        },
+                                    )
+                                    Text(
+                                        if (count > 0) "${kind.label} (${count})" else "${kind.label} — none",
+                                        color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            if (finalSessionIds.isNotEmpty()) {
+                                HorizontalDivider()
+                                Text(
+                                    "${finalSessionIds.size} session(s) will be recalculated; everything else on the timetable is preserved.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = selectedConflictIds.isNotEmpty() && !viewModel.busy,
-                    onClick = {
-                        val ids = viewModel.repairConflicts
-                            .filter { it.id in selectedConflictIds }
-                            .flatMap { listOfNotNull(it.sessionAId, it.sessionBId) }
-                            .toSet()
-                        showRepairDialog = false
-                        viewModel.repairLatest(ids)
-                    },
-                ) { Text("Repair selected") }
+                when (repairWizardStep) {
+                    1 -> TextButton(
+                        enabled = affectedEntities.isNotEmpty(),
+                        onClick = { repairWizardStep = 2 },
+                    ) { Text("Next") }
+                    2 -> TextButton(
+                        enabled = selectedRepairEntityIds.isNotEmpty(),
+                        onClick = { repairWizardStep = 3 },
+                    ) { Text("Next") }
+                    else -> TextButton(
+                        enabled = finalSessionIds.isNotEmpty() && !viewModel.busy,
+                        onClick = {
+                            showRepairDialog = false
+                            viewModel.repairLatest(finalSessionIds)
+                        },
+                    ) { Text("Repair selected") }
+                }
             },
-            dismissButton = { TextButton(onClick = { showRepairDialog = false }) { Text("Cancel") } },
+            dismissButton = {
+                if (repairWizardStep > 1) {
+                    TextButton(onClick = { repairWizardStep -= 1 }) { Text("Back") }
+                } else {
+                    TextButton(onClick = { showRepairDialog = false }) { Text("Cancel") }
+                }
+            },
         )
     }
 
@@ -410,3 +524,45 @@ private fun LineageEntryCard(entry: LineageEntry, onView: () -> Unit, onDelete: 
         }
     }
 }
+
+/** Which kind of entity the guided Repair dialog's step 1 lets someone target. */
+private enum class RepairEntityKind(val label: String) {
+    TEACHER("Teacher"), ROOM("Room"), CLASS("Class"), SUBJECT("Subject")
+}
+
+/** Which dimension of a conflict step 3 lets someone target — "the other types" per-entity. */
+private enum class RepairConflictKind(val label: String) {
+    TIME("Time"), ROOM("Room"), CLASS("Class"), SUBJECT("Subject")
+}
+
+private fun com.jpagdi.cromascheduler.data.repository.ScheduleRepository.ConflictParticipant.idFor(
+    kind: RepairEntityKind,
+): String? = when (kind) {
+    RepairEntityKind.TEACHER -> teacherId
+    RepairEntityKind.ROOM -> roomId
+    RepairEntityKind.CLASS -> sectionId
+    RepairEntityKind.SUBJECT -> subjectId
+}
+
+private fun com.jpagdi.cromascheduler.data.repository.ScheduleRepository.ConflictParticipant.nameFor(
+    kind: RepairEntityKind,
+): String? = when (kind) {
+    RepairEntityKind.TEACHER -> teacherName
+    RepairEntityKind.ROOM -> roomName
+    RepairEntityKind.CLASS -> sectionName
+    RepairEntityKind.SUBJECT -> subjectName
+}
+
+/**
+ * Which of the four "other types" a conflict record represents — time (a teacher-schedule
+ * clash), room, class, or subject. Used by the guided Repair dialog's step 3 to let someone
+ * narrow a selected teacher/room/class/subject down to only the conflict kind(s) they want fixed.
+ */
+private fun com.jpagdi.cromascheduler.data.repository.ScheduleRepository.ConflictDetail.kind(): RepairConflictKind =
+    when (conflictType) {
+        "TEACHER_DOUBLE_BOOKED", "TEACHER_UNAVAILABLE", "DURATION_EXCEEDS_AVAILABLE_PERIODS" -> RepairConflictKind.TIME
+        "ROOM_DOUBLE_BOOKED", "ROOM_UNAVAILABLE", "ROOM_CAPACITY_EXCEEDED" -> RepairConflictKind.ROOM
+        "SECTION_DOUBLE_BOOKED" -> RepairConflictKind.CLASS
+        "SUBJECT_DOUBLE_BOOKED" -> RepairConflictKind.SUBJECT
+        else -> RepairConflictKind.TIME
+    }

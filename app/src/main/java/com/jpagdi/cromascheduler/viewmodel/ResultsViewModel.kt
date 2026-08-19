@@ -28,6 +28,10 @@ class ResultsViewModel(private val repository: ScheduleRepository) : ViewModel()
     var statistics by mutableStateOf(ResultsStatistics(0, 0, 0.0))
         private set
 
+    /** sessionIds named in at least one validation conflict — ResultsScreen highlights these rows. */
+    var conflictedSessionIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+
     var isLoading by mutableStateOf(true)
         private set
 
@@ -38,6 +42,12 @@ class ResultsViewModel(private val repository: ScheduleRepository) : ViewModel()
             val loadedRun = repository.getRun(runId)
             run = loadedRun
             val conflicts = repository.getConflicts(runId)
+            conflictedSessionIds = buildSet {
+                for (c in conflicts) {
+                    add(c.sessionAId)
+                    c.sessionBId?.let { add(it) }
+                }
+            }
 
             // Room utilization is computed against THIS run's own period grid, not a shared
             // global one — a run predating per-run period storage falls back the same way

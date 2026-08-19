@@ -1,3 +1,17 @@
+## v1.0.3 — Alignment, Lineage, and Guided Repair Patch
+
+### Fixed
+- The TIMETABLES wordmark now stretches (letter-spacing) to match CHROMA's rendered width, falling back to centering within that width when an exact match isn't achievable — applied everywhere via the shared brand wordmark composable (top bars, home header, drawer).
+- Fixed the Import success screen: the "Continue to Generate" action could be pushed off-screen with no way to reach it on smaller screens or longer result/error lists. The screen now scrolls.
+- Deleting the root version of a timetable no longer deletes surviving Repair/Optimize versions with it. The oldest remaining version is promoted to root instead, so the timetable stays as long as any version of it exists. Deleting the whole lineage now only happens via the explicit "Delete timetable" action, or when the deleted version was the last one left.
+- Fixed a false-positive in subject-conflict validation: two different sections sharing the same subject at the same time (completely normal — e.g. two sections both having Math 3rd period) was being flagged as a "Subject double-booked" conflict. This was flooding real timetables with unfixable phantom conflicts and was very likely why Optimize and Repair looked like they weren't doing anything — they were chasing a constraint that was never really a conflict. Subject-conflict detection is now scoped to what's actually anomalous: the same class/section double-booked into the same subject.
+- Validation conflicts are now highlighted directly on the Results timetable (not just reported in a list): flagged sessions get their text colored and a "CONFLICT" tag, in red on the Light theme and in the wordmark's green on Dark/Black (red doesn't read well on near-black surfaces).
+- Rebuilt the "Repair schedule" dialog on Timetable Actions into a guided 3-step flow: pick an entity kind (Teacher, Room, Class, Subject) → pick which specific ones are actually affected by a conflict → pick which conflict dimension on their schedule to fix (Time, Room, Class, Subject) → repair. Only the sessions matching that exact selection are touched; everything else on the timetable is preserved untouched.
+
+### Data
+- Added `ScheduleRepository.getConflictDetails()`, joining each conflict's sessions to their teacher/room/class/subject names for the current run — backs the guided repair dialog's entity picker instead of showing raw session ids or one flat conflict message.
+- Added `ScheduleRepository.deleteVersion()` for single-version deletion with root promotion, alongside the existing `deleteRun()` (still used for whole-lineage deletion).
+
 ## v1.0.2 — Repair & Conflict Resolution Patch
 
 ### Fixed
