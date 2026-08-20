@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jpagdi.cromascheduler.data.entity.PeriodBlock
 import com.jpagdi.cromascheduler.designsystem.CromaStatus
@@ -59,8 +63,33 @@ fun TimetableDetailScreen(
     onRepairWorkflow: (runId: String) -> Unit,
 ) {
     val container = LocalAppContainer.current
-    val viewModel: TimetableDetailViewModel = viewModel(factory = TimetableDetailViewModel.factory(container.scheduleRepository, runId))
-    LaunchedEffect(Unit) { viewModel.load() }
+    // Bumped whenever the ViewModel signals a lineage-changing action completed (optimize,
+    // repair, validate, delete-promotion). Changing this changes the `key` passed to
+    // viewModel(), which makes Compose throw away the old ViewModel instance and construct a
+    // brand new one — i.e. every mutating action gets exactly the same fresh, from-scratch
+    // reload that reliably works when leaving this screen and coming back, rather than trusting
+    // in-place state patching to have kept everything in sync.
+    var generation by remember(runId) { mutableStateOf(0) }
+    val viewModel: TimetableDetailViewModel = viewModel(
+        key = "timetable-detail-$runId-$generation",
+        factory = TimetableDetailViewModel.factory(container.scheduleRepository, runId),
+    )
+    LaunchedEffect(viewModel) { viewModel.load() }
+    LaunchedEffect(viewModel.refreshToken) {
+        if (viewModel.refreshToken > 0) generation += 1
+    }
+    // Reload every time this screen becomes visible again (not just on first composition) —
+    // returning here via back navigation from a DIFFERENT screen (e.g. Validate/Results) reuses
+    // this same screen instance, so a one-shot load never sees changes made over there. ON_RESUME
+    // fires both on first appearance and every time navigating back to this destination.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.load()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(viewModel.deleted) { if (viewModel.deleted) onDeleted() }
     var confirmDelete by remember { mutableStateOf(false) }
     var versionToDelete by remember { mutableStateOf<LineageEntry?>(null) }
@@ -69,9 +98,17 @@ fun TimetableDetailScreen(
     var showExportPicker by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     val root = viewModel.root
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel.errorMessage) {
+        viewModel.errorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
         topBar = { CromaTopBar(root?.name ?: "Timetable", onBack) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(

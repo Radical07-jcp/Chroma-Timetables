@@ -80,7 +80,7 @@ fun SidebarDrawer(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    "v1.0.4  •  On-device scheduling",
+                    "v1.0.5  •  On-device scheduling",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

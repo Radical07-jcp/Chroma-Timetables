@@ -259,7 +259,6 @@ private fun CromaApp(
                         }
                     },
                     onValidate = { rId -> navController.navigate(CromaRoutes.validate(rId)) },
-                    onOptimize = { rId -> navController.navigate(CromaRoutes.optimize(rId)) },
                 )
             }
             composable(

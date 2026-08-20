@@ -43,15 +43,21 @@ fun RepairWorkflowScreen(
     onBack: () -> Unit,
     onSaved: (newRunId: String) -> Unit,
     onValidate: (runId: String) -> Unit,
-    onOptimize: (runId: String) -> Unit,
 ) {
     val container = LocalAppContainer.current
     val viewModel: RepairWorkflowViewModel = viewModel(factory = RepairWorkflowViewModel.factory(container.scheduleRepository, runId))
 
     LaunchedEffect(runId) { viewModel.load() }
     LaunchedEffect(viewModel.saved) { if (viewModel.saved) viewModel.savedRunId?.let(onSaved) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel.errorMessage) {
+        viewModel.errorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearError()
+        }
+    }
 
-    Scaffold(topBar = { CromaTopBar("Repair Schedule", onBack) }) { padding ->
+    Scaffold(topBar = { CromaTopBar("Repair Schedule", onBack) }, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -63,15 +69,10 @@ fun RepairWorkflowScreen(
                 return@Column
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = { onValidate(runId) }, modifier = Modifier.weight(1f)) { Text("Validate") }
-                OutlinedButton(onClick = { onOptimize(runId) }, modifier = Modifier.weight(1f)) { Text("Optimize") }
-            }
-
             when (viewModel.step) {
                 RepairWorkflowStep.PICK_TYPE -> PickTypeStep(viewModel)
                 RepairWorkflowStep.PICK_ENTITIES -> PickEntitiesStep(viewModel)
-                RepairWorkflowStep.PREVIEW -> PreviewStep(viewModel)
+                RepairWorkflowStep.PREVIEW -> PreviewStep(viewModel, onValidate = { onValidate(runId) })
             }
         }
     }
@@ -177,7 +178,7 @@ private fun EntityRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
+private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel, onValidate: () -> Unit) {
     val dimension = viewModel.dimension
     val otherDimensions = RepairDimension.entries.filter { it != dimension }
     var adjustMenuOpen by remember { mutableStateOf(false) }
@@ -252,12 +253,17 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedButton(onClick = { viewModel.backToEntities() }, modifier = Modifier.weight(1f)) { Text("Back") }
-        Button(
-            onClick = { viewModel.save() },
-            enabled = viewModel.pendingChanges > 0 && !viewModel.busy,
-            modifier = Modifier.weight(1f),
-        ) { Text(if (viewModel.busy) "Saving…" else "Save Repair") }
     }
+    OutlinedButton(
+        onClick = onValidate,
+        enabled = !viewModel.busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("Validate") }
+    Button(
+        onClick = { viewModel.save() },
+        enabled = viewModel.pendingChanges > 0 && !viewModel.busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(if (viewModel.busy) "Saving…" else "Save & Repair") }
 
     val tapped = pickerForSession
     if (tapped != null && viewModel.adjustBy != null) {

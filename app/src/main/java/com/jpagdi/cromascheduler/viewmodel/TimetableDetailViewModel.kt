@@ -35,15 +35,48 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, initi
         private set
     var repairConflictDetails by mutableStateOf<List<ScheduleRepository.ConflictDetail>>(emptyList())
         private set
+    var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Bumped after every action that changes this lineage (optimize/repair/validate/delete-
+     * promotion). The screen observes this and rebuilds this ViewModel from scratch with a fresh
+     * `viewModel(key=...)` call when it changes — i.e. it always re-derives state exactly the way
+     * "go back to the timetable list, then open this timetable again" does, since that path has
+     * been confirmed to reliably show the latest version and in-place state patching has not.
+     * This sidesteps needing to pin down exactly why the in-place path lagged; it just never
+     * relies on it being correct.
+     */
+    var refreshToken by mutableStateOf(0)
+        private set
 
     val root: ScheduleRunEntity? get() = entries.firstOrNull()?.run
     val latest: LineageEntry? get() = entries.lastOrNull()
 
+    fun clearError() {
+        errorMessage = null
+    }
+
     fun load() {
-        viewModelScope.launch { reload() }
+        viewModelScope.launch {
+            try {
+                reload()
+            } catch (t: Throwable) {
+                errorMessage = "Couldn't load this timetable: ${t.message ?: t::class.simpleName}"
+                loaded = true
+            }
+        }
     }
 
     private suspend fun reload() {
+        // The nav route this screen is opened with may be a lineage's true root id, OR one of
+        // its child versions' own id — Optimize/Repair both navigate here with the run they
+        // just created, which is a child, not the root. Resolve to the true root first so the
+        // full lineage always loads (siblings included), instead of silently showing only the
+        // one run that happens to match whatever id we were handed.
+        val given = repository.getRun(currentRootId)
+        val rootRunId = given?.rootRunId
+        if (rootRunId != null) currentRootId = rootRunId
         val lineage = repository.getLineage(currentRootId)
         entries = lineage.map { LineageEntry(it, repository.getConflicts(it.id).size) }
         loaded = true
@@ -54,20 +87,30 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, initi
         val target = latest?.run ?: return
         viewModelScope.launch {
             busy = true
-            repository.validate(target.id)
-            reload()
-            busy = false
+            try {
+                repository.validate(target.id)
+                refreshToken += 1
+            } catch (t: Throwable) {
+                errorMessage = "Validate failed: ${t.message ?: t::class.simpleName}"
+            } finally {
+                busy = false
+            }
         }
     }
 
-    /** Optimize the latest entry — creates one new lineage entry (rootRunId stamped by the repository), reloads the whole timeline in place. */
+    /** Optimize the latest entry — creates one new lineage entry (rootRunId stamped by the repository). */
     fun optimizeLatest() {
         val target = latest?.run ?: return
         viewModelScope.launch {
             busy = true
-            repository.optimize(target.id)
-            reload()
-            busy = false
+            try {
+                repository.optimize(target.id)
+                refreshToken += 1
+            } catch (t: Throwable) {
+                errorMessage = "Optimize failed: ${t.message ?: t::class.simpleName}"
+            } finally {
+                busy = false
+            }
         }
     }
 
@@ -82,14 +125,22 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, initi
         if (selectedSessionIds.isEmpty()) return
         viewModelScope.launch {
             busy = true
-            repository.repair(target.id, selectedSessionIds = selectedSessionIds)
-            reload()
-            busy = false
+            try {
+                repository.repair(target.id, selectedSessionIds = selectedSessionIds)
+                refreshToken += 1
+            } catch (t: Throwable) {
+                errorMessage = "Repair failed: ${t.message ?: t::class.simpleName}"
+            } finally {
+                busy = false
+            }
         }
     }
 
     fun renameVersion(runId: String, name: String) {
-        viewModelScope.launch { repository.renameRun(runId, name); reload() }
+        viewModelScope.launch {
+            repository.renameRun(runId, name)
+            refreshToken += 1
+        }
     }
 
     fun delete() {
@@ -102,9 +153,9 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, initi
     /**
      * Delete one saved version. If it's a derived (non-root) version, only that entry goes away
      * and the rest of the history is untouched. If it's the root and other versions still exist,
-     * the lineage survives on the next-oldest version — [currentRootId] follows that promotion so
-     * the screen keeps showing this timetable instead of navigating away. [deleted] (and
-     * [onDeleted]) only fire when this was truly the last version left.
+     * the lineage survives on the next-oldest version — [currentRootId] follows that promotion, and
+     * [refreshToken] tells the screen to rebuild fresh from it rather than trust the in-place state.
+     * [deleted] (and [onDeleted]) only fire when this was truly the last version left.
      */
     fun deleteVersion(runId: String, onDeleted: (() -> Unit)? = null) {
         viewModelScope.launch {
@@ -114,7 +165,7 @@ class TimetableDetailViewModel(private val repository: ScheduleRepository, initi
                 onDeleted?.invoke()
             } else {
                 currentRootId = newRootId
-                reload()
+                refreshToken += 1
                 onDeleted?.invoke()
             }
         }

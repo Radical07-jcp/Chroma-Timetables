@@ -1,3 +1,16 @@
+## v1.0.5 — Fixed Stale Timetable State After Optimize/Repair
+
+### Fixed
+- The persistent "Optimize/Repair doesn't show up until you delete a version and come back" bug. Every mutating action on a timetable (Optimize, Repair, Validate, delete-with-promotion, rename) now forces the Timetable Detail screen to throw away its in-place state and rebuild completely from scratch — the exact same fresh reload that reliably worked when leaving the screen and coming back. Rather than continue trusting incremental state patching to stay correctly in sync, mutating actions now always get that same guaranteed-correct fresh reload.
+- "Save & Repair" (and Optimize/Validate/Repair on Timetable Detail) previously had no error handling: if anything went wrong while saving, the button just kept spinning forever with no feedback, and backing out of it silently lost every adjustment made in that session — which was indistinguishable from "it didn't do anything." Both now surface a clear error message if a save/action genuinely fails, instead of hanging silently.
+- Also re-verified and hardened the root-resolution fix from v1.0.4 (a screen opened with a child version's id, e.g. right after Repair's save navigates to the newly-created version, now reliably resolves back to the true lineage root before loading, so the full version history — not just the one entry — always loads).
+
+### Changed — Repair screen consolidation
+- Removed the separate Optimize button from the Repair screen (Optimize and Repair were doing equivalent things there) — Validate now sits directly above Save & Repair.
+- Renamed "Save Repair" to "Save & Repair" for clarity.
+
+
+
 ## v1.0.4 — Real Optimize Fix & Guided Manual Repair
 
 ### Fixed
@@ -9,6 +22,8 @@
 - Replaced the "Repair schedule" step dialog with a real screen (reachable from Timetable Actions on any timetable, from Validate's "Repair Now," and from the Repair-upload flow after uploading an existing schedule) that no longer requires a flagged conflict to exist first — a voluntary swap two teachers want, with nothing "wrong" in the validator's eyes, is a first-class use case now, not just conflict resolution.
 - The new flow: pick what you're adjusting (Teacher, Room, Class, Subject, or the new fifth option, Period) → pick two or more specific ones (or one or more periods) → preview their current schedule → pick "Adjust by" (the other four dimensions) to highlight that field on every row → tap a row to see and choose from what's available to trade it with. Multiple adjustments can be made in the same preview before saving; saving persists everything as one new timetable version, not one per tap.
 - Added Validate and Optimize shortcut buttons directly on the new Repair screen.
+
+
 
 ## v1.0.3 — Alignment, Lineage, and Guided Repair Patch
 

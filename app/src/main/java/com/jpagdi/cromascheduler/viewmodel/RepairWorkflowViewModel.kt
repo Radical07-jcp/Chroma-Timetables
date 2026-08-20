@@ -91,6 +91,12 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     var savedRunId by mutableStateOf<String?>(null)
         private set
+    var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    fun clearError() {
+        errorMessage = null
+    }
 
     fun load() {
         viewModelScope.launch {
@@ -244,10 +250,18 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         if (busy) return
         viewModelScope.launch {
             busy = true
-            val newRunId = repository.commitManualRepair(sourceRunId, workingTimeslots, workingRooms)
-            savedRunId = newRunId
-            saved = true
-            busy = false
+            try {
+                val newRunId = repository.commitManualRepair(sourceRunId, workingTimeslots, workingRooms)
+                savedRunId = newRunId
+                saved = true
+            } catch (t: Throwable) {
+                // Surface the failure instead of leaving the button spinning forever with no
+                // feedback — a silent hang here was indistinguishable from "did nothing," and
+                // backing out of it lost every adjustment made in this session.
+                errorMessage = "Couldn't save this repair: ${t.message ?: t::class.simpleName}"
+            } finally {
+                busy = false
+            }
         }
     }
 

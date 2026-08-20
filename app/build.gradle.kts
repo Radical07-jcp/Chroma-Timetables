@@ -1,9 +1,28 @@
+import java.util.Properties
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
 android {
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     namespace = "com.jpagdi.cromascheduler"
     compileSdk = 34
 
@@ -11,8 +30,8 @@ android {
         applicationId = "com.jpagdi.cromascheduler"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.0.4" // Real optimizer swap fix, guided manual repair workflow (teacher/room/class/subject/period), drawer workflow tags matched to real design
+        versionCode = 6
+        versionName = "1.0.5" // Fixed stale timetable-detail state after Optimize/Repair (root-resolution + reload-on-resume), consolidated Repair screen actions
     }
 
     buildFeatures {
@@ -31,6 +50,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
 }
 
 dependencies {
