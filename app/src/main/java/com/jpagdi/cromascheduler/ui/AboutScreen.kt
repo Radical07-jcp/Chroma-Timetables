@@ -45,7 +45,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 )
             }
             Text("Chroma Timetables", style = MaterialTheme.typography.headlineSmall)
-            Text("Chroma Engine v1.0.1", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Chroma Engine v1.0.4", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Developed by Sir_JPagdi", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Card(

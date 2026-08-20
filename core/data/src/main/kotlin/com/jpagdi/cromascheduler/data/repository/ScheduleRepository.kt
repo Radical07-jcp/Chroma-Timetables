@@ -587,6 +587,9 @@ class ScheduleRepository(private val database: CromaDatabase) {
     }
 
     suspend fun getTeachers(): List<com.jpagdi.cromascheduler.data.entity.TeacherEntity> = database.teacherDao().getAll()
+    suspend fun getRooms(): List<com.jpagdi.cromascheduler.data.entity.RoomEntity> = database.roomDao().getAll()
+    suspend fun getSections(): List<com.jpagdi.cromascheduler.data.entity.SectionEntity> = database.sectionDao().getAll()
+    suspend fun getSubjects(): List<com.jpagdi.cromascheduler.data.entity.SubjectEntity> = database.subjectDao().getAll()
 
     /** Whether Generate has anything to work with yet for [type] — GenerateScreen uses this to point someone at Import Data instead of letting them tap Generate against zero sessions. */
     suspend fun sessionCountFor(type: SessionTypeEntity): Int = database.sessionDao().getAll().count { it.type == type }
@@ -770,6 +773,114 @@ class ScheduleRepository(private val database: CromaDatabase) {
         }
     }
 
+    /** One session's full current placement, resolved to display names — the unit the guided
+     * manual Repair workflow (pick teachers/rooms/classes/subjects/periods -> preview their
+     * schedule -> tap to swap) works with. Unlike [ConflictDetail] this covers EVERY session in
+     * the run, not just conflicted ones — the workflow doesn't require a conflict to exist. */
+    data class RunSessionState(
+        val sessionId: String,
+        val teacherId: String?,
+        val teacherName: String?,
+        val roomId: String?,
+        val roomName: String?,
+        val sectionId: String?,
+        val sectionName: String?,
+        val subjectId: String?,
+        val subjectName: String?,
+        val day: Int,
+        val period: Int,
+        val startTime: String,
+        val endTime: String,
+        val dayLabel: String,
+    )
+
+    suspend fun getRunSessionStates(runId: String): List<RunSessionState> {
+        val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
+        val savedAssignments = database.scheduleRunDao().getAssignmentsFor(runId)
+        if (savedAssignments.isEmpty()) return emptyList()
+        val snapshot = snapshotFrom(run.sourceSnapshotEncoded)
+        val sessions = (snapshot?.sessions ?: database.sessionDao().getAll()).associateBy { it.id }
+        val subjects = (snapshot?.subjects ?: database.subjectDao().getAll()).associateBy { it.id }
+        val teachers = (snapshot?.teachers ?: database.teacherDao().getAll()).associateBy { it.id }
+        val sections = (snapshot?.sections ?: database.sectionDao().getAll()).associateBy { it.id }
+        val rooms = (snapshot?.rooms ?: database.roomDao().getAll()).associateBy { it.id }
+        val timeslots = timeslotsFor(run).associateBy { it.dayOfWeek to it.periodIndex }
+
+        return savedAssignments.mapNotNull { a ->
+            val session = sessions[a.sessionId] ?: return@mapNotNull null
+            val slot = timeslots[a.dayOfWeek to a.periodIndex]
+            RunSessionState(
+                sessionId = session.id,
+                teacherId = session.teacherId,
+                teacherName = session.teacherId?.let { teachers[it]?.name },
+                roomId = a.roomId,
+                roomName = a.roomId?.let { rooms[it]?.name },
+                sectionId = session.sectionId,
+                sectionName = session.sectionId?.let { sections[it]?.name },
+                subjectId = session.subjectId,
+                subjectName = session.subjectId?.let { subjects[it]?.name },
+                day = a.dayOfWeek,
+                period = a.periodIndex,
+                startTime = slot?.startTime ?: "Period ${a.periodIndex}",
+                endTime = slot?.endTime.orEmpty(),
+                dayLabel = DAY_NAMES[a.dayOfWeek] ?: "Day ${a.dayOfWeek}",
+            )
+        }
+    }
+
+    /** [runId]'s own timeslot grid (day/period/time labels) — lets the manual Repair workflow's
+     * "Period" entity picker offer every defined period, including ones nothing is currently
+     * scheduled into (so a session can be moved into a genuinely empty slot, not just swapped). */
+    suspend fun timeslotsForRun(runId: String): List<TimeslotInfo> {
+        val run = database.scheduleRunDao().getById(runId) ?: return emptyList()
+        return timeslotsFor(run)
+    }
+
+    /**
+     * Commits the manual Repair workflow's edits as one new version. [assignments]/[roomBySession]
+     * are the FULL working copy of every session's placement after however many swaps/moves the
+     * planner made in the preview — this persists that whole state at once (so tapping through
+     * several swaps before saving creates exactly one new lineage entry, not one per tap) and
+     * re-validates it so the new version's conflict state is accurate immediately.
+     */
+    suspend fun commitManualRepair(
+        sourceRunId: String,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+    ): String {
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val input = if (sourceRun != null) buildSchedulingInputForRun(sourceRun) else buildSchedulingInput(emptyList())
+        val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
+        val violations = ConstraintValidator.validate(
+            ValidationContext(
+                sessions = input.sessions,
+                assignments = assignments,
+                roomBySession = resolvedRooms,
+                rooms = input.rooms,
+                sectionStudentCounts = input.sectionStudentCounts,
+                blockedTeacherSlots = input.blockedTeacherSlots,
+                blockedRoomSlots = input.blockedRoomSlots,
+                definedPeriodsByDay = input.definedPeriodsByDay,
+            ),
+        )
+        val runId = UUID.randomUUID().toString()
+        val run = ScheduleRunEntity(
+            id = runId,
+            name = "${sourceRun?.name ?: "Schedule"} (repaired)",
+            createdAtEpochMillis = System.currentTimeMillis(),
+            algorithmUsed = "manual-repair",
+            mode = ScheduleMode.REPAIR,
+            executionTimeMillis = 0,
+            sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
+            periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
+            activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
+            rootRunId = sourceRun?.rootRunId ?: sourceRunId,
+            sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
+        )
+        persistRun(run, assignments, resolvedRooms, violations)
+        return runId
+    }
+
     companion object {
         fun sanitizeRunName(rawName: String): String {
             val trimmed = rawName.trim()
@@ -781,6 +892,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
             1 to "Monday", 2 to "Tuesday", 3 to "Wednesday", 4 to "Thursday",
             5 to "Friday", 6 to "Saturday", 7 to "Sunday",
         )
+
+        fun dayLabelFor(day: Int): String = DAY_NAMES[day] ?: "Day $day"
     }
 
     private suspend fun persistRun(

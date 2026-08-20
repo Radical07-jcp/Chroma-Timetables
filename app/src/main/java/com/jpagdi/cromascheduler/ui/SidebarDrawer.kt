@@ -48,11 +48,7 @@ fun SidebarDrawer(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     BrandWordmark()
-                    Text(
-                        "PLAN  •  VALIDATE  •  OPTIMIZE",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                    CromaWorkflowTags(modifier = Modifier.padding(top = 2.dp))
                 }
             }
 
@@ -84,7 +80,7 @@ fun SidebarDrawer(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    "v1.0.0  •  On-device scheduling",
+                    "v1.0.4  •  On-device scheduling",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

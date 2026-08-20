@@ -22,7 +22,9 @@ import com.jpagdi.cromascheduler.viewmodel.ViewModelFactory
  * isn't something the engine builds, it's something a school already has. Shares the same
  * choose-type -> define-periods wizard steps Generate uses (via [wizard]) so the uploaded
  * schedule's real period times display correctly everywhere downstream, then lands on
- * [RepairScreen] the moment the upload finishes, already validated.
+ * [RepairWorkflowScreen] the moment the upload finishes, already validated — the same guided
+ * teacher/room/class/subject/period repair workflow available from an existing timetable's
+ * Timetable Actions, just starting from freshly-uploaded data instead of one already in the app.
  */
 @Composable
 fun RepairUploadScreen(wizard: CreateTimetableViewModel, onBack: () -> Unit, onImported: (runId: String) -> Unit) {

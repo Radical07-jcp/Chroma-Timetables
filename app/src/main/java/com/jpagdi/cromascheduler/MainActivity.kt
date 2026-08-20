@@ -191,7 +191,7 @@ private fun CromaApp(
                     wizard = repairWizard,
                     onBack = { navController.popBackStack() },
                     onImported = { runId ->
-                        navController.navigate(CromaRoutes.repair(runId)) { popUpTo(CromaRoutes.REPAIR_CHOOSE_TYPE) { inclusive = true } }
+                        navController.navigate(CromaRoutes.repairWorkflow(runId)) { popUpTo(CromaRoutes.REPAIR_CHOOSE_TYPE) { inclusive = true } }
                     },
                 )
             }
@@ -219,6 +219,7 @@ private fun CromaApp(
                     onExport = { rId, runName -> navController.navigate(CromaRoutes.export(rId, runName)) },
                     onTeachers = { navController.navigate(CromaRoutes.TEACHERS) },
                     onDeleted = { navController.popBackStack(CromaRoutes.HOME, inclusive = false) },
+                    onRepairWorkflow = { rId -> navController.navigate(CromaRoutes.repairWorkflow(rId)) },
                 )
             }
             composable(
@@ -229,7 +230,7 @@ private fun CromaApp(
                 ValidateScreen(
                     runId = runId,
                     onBack = { navController.popBackStack() },
-                    onRepair = { navController.navigate(CromaRoutes.repair(runId)) },
+                    onRepair = { navController.navigate(CromaRoutes.repairWorkflow(runId)) },
                 )
             }
             composable(
@@ -242,6 +243,23 @@ private fun CromaApp(
                     onBack = { navController.popBackStack() },
                     onOptimize = { newRunId -> navController.navigate(CromaRoutes.optimize(newRunId)) },
                     onViewTimetable = { newRunId -> navController.navigate(CromaRoutes.results(newRunId)) },
+                )
+            }
+            composable(
+                CromaRoutes.REPAIR_WORKFLOW,
+                arguments = listOf(navArgument("runId") { type = NavType.StringType }),
+            ) { entry ->
+                val runId = entry.arguments!!.getString("runId")!!
+                RepairWorkflowScreen(
+                    runId = runId,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { newRunId ->
+                        navController.navigate(CromaRoutes.timetableDetail(newRunId)) {
+                            popUpTo(CromaRoutes.HOME)
+                        }
+                    },
+                    onValidate = { rId -> navController.navigate(CromaRoutes.validate(rId)) },
+                    onOptimize = { rId -> navController.navigate(CromaRoutes.optimize(rId)) },
                 )
             }
             composable(

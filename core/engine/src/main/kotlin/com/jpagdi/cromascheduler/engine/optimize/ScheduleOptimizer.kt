@@ -194,7 +194,13 @@ object ScheduleOptimizer {
                         val aWantsB = bFrom in input.availableTimeslotsBySession[aId].orEmpty()
                         val bWantsA = aFrom in input.availableTimeslotsBySession[bId].orEmpty()
                         if (!aWantsB && !bWantsA) continue
-                        if (focusedIds.isNotEmpty() && (aId !in focusedIds || bId !in focusedIds)) continue
+                        // A swap only needs to involve a flagged session, not have BOTH sides
+                        // flagged. The realistic fix for a double-booking is swapping the
+                        // conflicted session with an unrelated, perfectly fine one that happens
+                        // to hold the slot it needs — requiring both sides to already be
+                        // conflicted ruled that out every time, since a swap partner is almost
+                        // always a "clean" session by definition.
+                        if (focusedIds.isNotEmpty() && aId !in focusedIds && bId !in focusedIds) continue
                         if (!occupiedFits(a, bFrom, input.availableTimeslotsBySession[aId].orEmpty().toSet())) continue
                         if (!occupiedFits(b, aFrom, input.availableTimeslotsBySession[bId].orEmpty().toSet())) continue
 

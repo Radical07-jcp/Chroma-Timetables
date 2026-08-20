@@ -1,3 +1,15 @@
+## v1.0.4 — Real Optimize Fix & Guided Manual Repair
+
+### Fixed
+- Found and fixed the actual bug behind Optimize "reporting clean" while really just copying the conflicted schedule through unchanged: the swap search required BOTH sessions in a candidate swap to already be individually flagged as conflicted. In practice the realistic fix for a double-booking is swapping the conflicted session with an unrelated, perfectly ordinary session that happens to be sitting in the slot it needs — and a swap partner is almost always "clean" by definition, so that requirement silently disabled the swap path for most real conflicts. Now a swap only needs to involve at least one flagged session, not both. Added a regression test covering a conflict that's only fixable via exactly this kind of swap.
+- The sidebar drawer's "PLAN • VALIDATE • OPTIMIZE" line was plain text that didn't match the actual pill/tag design used on the Validate, Repair, and Optimize screens themselves. It now renders the same `CromaWorkflowTags` component, so the drawer and the screens are visually consistent.
+- Version numbers shown in the drawer, Settings, and About screens were each hardcoded separately and had drifted out of sync with each other and with the app's real build version. All three now read v1.0.4, matching this release.
+
+### Changed — Repair schedule is now a full guided workflow, not a dialog
+- Replaced the "Repair schedule" step dialog with a real screen (reachable from Timetable Actions on any timetable, from Validate's "Repair Now," and from the Repair-upload flow after uploading an existing schedule) that no longer requires a flagged conflict to exist first — a voluntary swap two teachers want, with nothing "wrong" in the validator's eyes, is a first-class use case now, not just conflict resolution.
+- The new flow: pick what you're adjusting (Teacher, Room, Class, Subject, or the new fifth option, Period) → pick two or more specific ones (or one or more periods) → preview their current schedule → pick "Adjust by" (the other four dimensions) to highlight that field on every row → tap a row to see and choose from what's available to trade it with. Multiple adjustments can be made in the same preview before saving; saving persists everything as one new timetable version, not one per tap.
+- Added Validate and Optimize shortcut buttons directly on the new Repair screen.
+
 ## v1.0.3 — Alignment, Lineage, and Guided Repair Patch
 
 ### Fixed
