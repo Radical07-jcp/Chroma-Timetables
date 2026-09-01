@@ -30,8 +30,8 @@ android {
         applicationId = "com.jpagdi.cromascheduler"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.0.5" // Fixed stale timetable-detail state after Optimize/Repair (root-resolution + reload-on-resume), consolidated Repair screen actions
+        versionCode = 7
+        versionName = "1.0.7" // Release alignment: repo, tag, and UI now match the v1.0.7 build on main
     }
 
     buildFeatures {

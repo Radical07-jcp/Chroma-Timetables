@@ -50,7 +50,7 @@ fun SettingsScreen(
             )
 
             SettingsSection(title = "Chroma Engine") {
-                Text("v1.0.5", style = MaterialTheme.typography.titleMedium)
+                Text("v1.0.7", style = MaterialTheme.typography.titleMedium)
                 FormalBodyText(
                     "UI/UX revamp with Material 3 theming, Space Grotesk typography, safer import replacement, persistent timetable source snapshots, version deletion, and preference-aware repair/optimization.",
                 )

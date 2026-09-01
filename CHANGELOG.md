@@ -1,3 +1,8 @@
+## v1.0.7 — Release alignment and version metadata fix
+
+### Fixed
+- Synced the visible app version strings and build metadata with the v1.0.7 release already published on GitHub so the app and repo no longer still advertise 1.0.5.
+
 ## v1.0.5 — Fixed Stale Timetable State After Optimize/Repair
 
 ### Fixed
