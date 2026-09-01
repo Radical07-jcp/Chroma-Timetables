@@ -42,7 +42,6 @@ fun RepairWorkflowScreen(
     runId: String,
     onBack: () -> Unit,
     onSaved: (newRunId: String) -> Unit,
-    onValidate: (runId: String) -> Unit,
 ) {
     val container = LocalAppContainer.current
     val viewModel: RepairWorkflowViewModel = viewModel(factory = RepairWorkflowViewModel.factory(container.scheduleRepository, runId))
@@ -72,7 +71,7 @@ fun RepairWorkflowScreen(
             when (viewModel.step) {
                 RepairWorkflowStep.PICK_TYPE -> PickTypeStep(viewModel)
                 RepairWorkflowStep.PICK_ENTITIES -> PickEntitiesStep(viewModel)
-                RepairWorkflowStep.PREVIEW -> PreviewStep(viewModel, onValidate = { onValidate(runId) })
+                RepairWorkflowStep.PREVIEW -> PreviewStep(viewModel)
             }
         }
     }
@@ -178,7 +177,7 @@ private fun EntityRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel, onValidate: () -> Unit) {
+private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
     val dimension = viewModel.dimension
     val otherDimensions = RepairDimension.entries.filter { it != dimension }
     var adjustMenuOpen by remember { mutableStateOf(false) }
@@ -210,6 +209,35 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel, onValida
     if (viewModel.pendingChanges > 0) {
         Text(
             "${viewModel.pendingChanges} adjustment(s) made — not yet saved.",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+
+    val liveSwapIds = viewModel.lastSwapSessionIds
+    if (liveSwapIds.size == 2) {
+        val liveRows = viewModel.allSessions
+            .filter { it.sessionId in liveSwapIds }
+            .map { viewModel.currentRowForDisplay(it) }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Latest swap • updated live", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                liveRows.forEach { row ->
+                    Text(
+                        "${row.subjectName ?: "—"} • ${row.teacherName ?: "—"} → ${row.dayLabel}, ${row.startTime} • ${row.roomName ?: "Unassigned"}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+
+    viewModel.validationMessage?.let { message ->
+        Text(
+            message,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -255,7 +283,7 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel, onValida
         OutlinedButton(onClick = { viewModel.backToEntities() }, modifier = Modifier.weight(1f)) { Text("Back") }
     }
     OutlinedButton(
-        onClick = onValidate,
+        onClick = { viewModel.validateWorking() },
         enabled = !viewModel.busy,
         modifier = Modifier.fillMaxWidth(),
     ) { Text("Validate") }

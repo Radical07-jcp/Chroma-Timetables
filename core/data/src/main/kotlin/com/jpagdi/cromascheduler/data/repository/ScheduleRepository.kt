@@ -843,25 +843,32 @@ class ScheduleRepository(private val database: CromaDatabase) {
      * several swaps before saving creates exactly one new lineage entry, not one per tap) and
      * re-validates it so the new version's conflict state is accurate immediately.
      */
+    suspend fun validateWorkingCopy(
+        sourceRunId: String,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+    ): List<ConstraintViolation> {
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val input = if (sourceRun != null) buildSchedulingInputForRun(sourceRun) else buildSchedulingInput(emptyList())
+        return validateAssignmentMap(input, assignments, roomBySession)
+    }
+
     suspend fun commitManualRepair(
         sourceRunId: String,
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String?>,
+        fixedSessionIds: Set<String> = emptySet(),
     ): String {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
         val input = if (sourceRun != null) buildSchedulingInputForRun(sourceRun) else buildSchedulingInput(emptyList())
+        val algorithm = ColoringAlgorithmRegistry.default
         val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
-        val violations = ConstraintValidator.validate(
-            ValidationContext(
-                sessions = input.sessions,
-                assignments = assignments,
-                roomBySession = resolvedRooms,
-                rooms = input.rooms,
-                sectionStudentCounts = input.sectionStudentCounts,
-                blockedTeacherSlots = input.blockedTeacherSlots,
-                blockedRoomSlots = input.blockedRoomSlots,
-                definedPeriodsByDay = input.definedPeriodsByDay,
-            ),
+        val result = RepairEngine.repair(
+            input = input,
+            existingAssignments = assignments,
+            existingRoomBySession = resolvedRooms,
+            algorithm = algorithm,
+            fixedSessionIds = fixedSessionIds,
         )
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
@@ -877,7 +884,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             rootRunId = sourceRun?.rootRunId ?: sourceRunId,
             sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
         )
-        persistRun(run, assignments, resolvedRooms, violations)
+        persistRun(run, result.assignments, result.roomBySession, result.remainingViolations)
         return runId
     }
 
@@ -894,6 +901,26 @@ class ScheduleRepository(private val database: CromaDatabase) {
         )
 
         fun dayLabelFor(day: Int): String = DAY_NAMES[day] ?: "Day $day"
+    }
+
+    private fun validateAssignmentMap(
+        input: SchedulingInput,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+    ): List<ConstraintViolation> {
+        val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
+        return ConstraintValidator.validate(
+            ValidationContext(
+                sessions = input.sessions,
+                assignments = assignments,
+                roomBySession = resolvedRooms,
+                rooms = input.rooms,
+                sectionStudentCounts = input.sectionStudentCounts,
+                blockedTeacherSlots = input.blockedTeacherSlots,
+                blockedRoomSlots = input.blockedRoomSlots,
+                definedPeriodsByDay = input.definedPeriodsByDay,
+            ),
+        )
     }
 
     private suspend fun persistRun(

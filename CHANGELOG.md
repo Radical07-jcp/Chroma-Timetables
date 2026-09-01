@@ -1,3 +1,16 @@
+## v1.0.8 — Active Version & Live Repair Fix
+
+### Fixed
+- Optimization now opens and displays the newly generated optimized version immediately. The active/latest lineage version is used for Home cards and timetable Results instead of accidentally routing back to the original/root version.
+- Repair now applies manual adjustments against the selected timetable version and creates the repaired version without requiring deletion of the original version first. Manual changes are protected while the repair engine resolves remaining conflicts around them.
+- Repair validation now checks the current unsaved working timetable rather than validating the original source version.
+- Manual repair preview now shows the latest swap live, including the two affected sessions' updated time/room placement, even when a swapped session leaves the current filter scope.
+
+### Release Metadata
+- Android `versionCode`: 9
+- Android `versionName`: 1.0.8
+- Updated drawer, Settings, and About version displays to v1.0.8.
+
 ## v1.0.7 — Release alignment and version metadata fix
 
 ### Fixed

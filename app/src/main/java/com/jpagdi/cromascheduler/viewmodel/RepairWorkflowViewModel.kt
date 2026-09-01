@@ -93,6 +93,12 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     var errorMessage by mutableStateOf<String?>(null)
         private set
+    var validationMessage by mutableStateOf<String?>(null)
+        private set
+    var lastSwapSessionIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+    private var changedSessionIds: Set<String> = emptySet()
+    private val lastChangedSessionIds: Set<String> get() = changedSessionIds
 
     fun clearError() {
         errorMessage = null
@@ -135,6 +141,9 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         step = RepairWorkflowStep.PREVIEW
         adjustBy = null
         pendingSwapSessionId = null
+        lastSwapSessionIds = emptySet()
+        changedSessionIds = emptySet()
+        validationMessage = null
     }
 
     fun backToEntities() {
@@ -153,7 +162,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
     }
 
     /** The current (working, i.e. reflecting edits already made) placement of one session. */
-    private fun currentRow(base: ScheduleRepository.RunSessionState): ScheduleRepository.RunSessionState {
+    fun currentRowForDisplay(base: ScheduleRepository.RunSessionState): ScheduleRepository.RunSessionState {
         val ts = workingTimeslots[base.sessionId] ?: Timeslot(base.day, base.period)
         val roomId = workingRooms[base.sessionId]
         val slot = periods.find { it.dayOfWeek == ts.dayOfWeek && it.periodIndex == ts.periodIndex }
@@ -172,7 +181,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
     /** Sessions in the current scope (per [dimension] + selection), reflecting live edits. */
     val scopedSessions: List<ScheduleRepository.RunSessionState>
         get() {
-            val rows = allSessions.map { currentRow(it) }
+            val rows = allSessions.map { currentRowForDisplay(it) }
             return when (dimension) {
                 RepairDimension.TEACHER -> rows.filter { it.teacherId in selectedEntityIds }
                 RepairDimension.ROOM -> rows.filter { it.roomId in selectedEntityIds }
@@ -244,6 +253,28 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
             workingRooms = workingRooms + (aId to b) + (bId to a)
         }
         pendingChanges += 1
+        lastSwapSessionIds = setOf(aId, bId)
+        changedSessionIds = changedSessionIds + aId + bId
+        validationMessage = null
+    }
+
+    fun validateWorking() {
+        if (busy) return
+        viewModelScope.launch {
+            busy = true
+            try {
+                val violations = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms)
+                validationMessage = when {
+                    violations.isEmpty() -> "Current adjustments are clean."
+                    violations.size == 1 -> "1 conflict remains in the current adjustments."
+                    else -> "${violations.size} conflicts remain in the current adjustments."
+                }
+            } catch (t: Throwable) {
+                errorMessage = "Couldn't validate the current adjustments: ${t.message ?: t::class.simpleName}"
+            } finally {
+                busy = false
+            }
+        }
     }
 
     fun save() {
@@ -251,7 +282,12 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         viewModelScope.launch {
             busy = true
             try {
-                val newRunId = repository.commitManualRepair(sourceRunId, workingTimeslots, workingRooms)
+                val newRunId = repository.commitManualRepair(
+                    sourceRunId = sourceRunId,
+                    assignments = workingTimeslots,
+                    roomBySession = workingRooms,
+                    fixedSessionIds = lastChangedSessionIds,
+                )
                 savedRunId = newRunId
                 saved = true
             } catch (t: Throwable) {

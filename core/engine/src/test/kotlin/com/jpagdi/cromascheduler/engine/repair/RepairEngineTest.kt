@@ -47,4 +47,37 @@ class RepairEngineTest {
         assertTrue(result.assignments.getValue("CONFLICT_A") != result.assignments.getValue("CONFLICT_B"), "Repair must resolve the double-booking")
         assertTrue(result.remainingViolations.isEmpty())
     }
+    @Test
+    fun `keeps explicit manual placement fixed while repairing its conflicting neighbor`() {
+        val sessions = listOf(
+            session("MANUAL", teacherId = "T1"),
+            session("NEIGHBOR", teacherId = "T1"),
+        )
+        val input = SchedulingInput(
+            sessions = sessions,
+            availableTimeslotsBySession = sessions.associate { it.id to weekPool },
+            rooms = emptyList(),
+            sectionStudentCounts = emptyMap(),
+            blockedTeacherSlots = emptyMap(),
+            blockedRoomSlots = emptyMap(),
+            definedPeriodsByDay = mapOf(1 to (0..7).toSet()),
+        )
+        val manualPlacement = Timeslot(1, 0)
+        val existingAssignments = mapOf(
+            "MANUAL" to manualPlacement,
+            "NEIGHBOR" to manualPlacement,
+        )
+
+        val result = RepairEngine.repair(
+            input = input,
+            existingAssignments = existingAssignments,
+            existingRoomBySession = emptyMap(),
+            fixedSessionIds = setOf("MANUAL"),
+        )
+
+        assertEquals(manualPlacement, result.assignments["MANUAL"], "Explicit user placement must survive repair")
+        assertTrue(result.assignments.getValue("NEIGHBOR") != manualPlacement, "Repair should move the conflicting neighbor")
+        assertTrue(result.remainingViolations.isEmpty())
+    }
+
 }

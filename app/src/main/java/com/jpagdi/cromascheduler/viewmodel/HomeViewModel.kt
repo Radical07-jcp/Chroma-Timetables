@@ -29,7 +29,7 @@ class HomeViewModel(private val repository: ScheduleRepository) : ViewModel() {
                 // since that's the timetable a person would actually act on next — not the original
                 // Generate run, which may have been conflicting and long since repaired.
                 val latest = repository.getLineage(root.id).maxByOrNull { it.createdAtEpochMillis } ?: root
-                TimetableRow(root, conflictCounts[latest.id] ?: 0)
+                TimetableRow(latest, conflictCounts[latest.id] ?: 0)
             }
             loaded = true
         }

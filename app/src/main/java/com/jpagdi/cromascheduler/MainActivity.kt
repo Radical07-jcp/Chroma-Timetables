@@ -215,7 +215,7 @@ private fun CromaApp(
                 TimetableDetailScreen(
                     runId = runId,
                     onBack = { navController.popBackStack() },
-                    onResults = { navController.navigate(CromaRoutes.results(runId)) },
+                    onResults = { selectedRunId -> navController.navigate(CromaRoutes.results(selectedRunId)) },
                     onExport = { rId, runName -> navController.navigate(CromaRoutes.export(rId, runName)) },
                     onTeachers = { navController.navigate(CromaRoutes.TEACHERS) },
                     onDeleted = { navController.popBackStack(CromaRoutes.HOME, inclusive = false) },
@@ -258,7 +258,6 @@ private fun CromaApp(
                             popUpTo(CromaRoutes.HOME)
                         }
                     },
-                    onValidate = { rId -> navController.navigate(CromaRoutes.validate(rId)) },
                 )
             }
             composable(

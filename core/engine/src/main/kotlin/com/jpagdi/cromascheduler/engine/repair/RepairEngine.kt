@@ -35,6 +35,7 @@ object RepairEngine {
         existingRoomBySession: Map<String, String>,
         algorithm: ColoringAlgorithm = ColoringAlgorithmRegistry.default,
         selectedSessionIds: Set<String>? = null,
+        fixedSessionIds: Set<String> = emptySet(),
     ): RepairResult {
         // Step 1: find what's actually broken in the schedule as given.
         val initialViolations = ConstraintValidator.validate(
@@ -56,10 +57,12 @@ object RepairEngine {
         // A scoped repair is explicit: only sessions selected by the user are unlocked.
         // Unselected sessions remain pinned even when another violation touches them.
         val neverAssigned = input.sessions.map { it.id }.filter { it !in existingAssignments }.toSet()
+        val inputSessionIds = input.sessions.map { it.id }.toSet()
+        val fixed = fixedSessionIds.intersect(inputSessionIds)
         val toRecolor = if (selectedSessionIds == null) {
-            detectedConflictingSessionIds + neverAssigned
+            (detectedConflictingSessionIds + neverAssigned) - fixed
         } else {
-            selectedSessionIds.intersect(input.sessions.map { it.id }.toSet())
+            selectedSessionIds.intersect(inputSessionIds) - fixed
         }
         val preserved = existingAssignments.keys - toRecolor
 

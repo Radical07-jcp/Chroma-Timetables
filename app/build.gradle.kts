@@ -30,8 +30,8 @@ android {
         applicationId = "com.jpagdi.cromascheduler"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.0.7" // Release alignment: repo, tag, and UI now match the v1.0.7 build on main
+        versionCode = 9
+        versionName = "1.0.8"
     }
 
     buildFeatures {
