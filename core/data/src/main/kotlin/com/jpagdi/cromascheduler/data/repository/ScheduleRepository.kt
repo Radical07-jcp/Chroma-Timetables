@@ -853,6 +853,59 @@ class ScheduleRepository(private val database: CromaDatabase) {
         return validateAssignmentMap(input, assignments, roomBySession)
     }
 
+    /** Result of the Repair workflow's scoped engine pass. This is deliberately separate from the
+     * standalone Repair/Optimize entry points so their behavior cannot be changed by the guided
+     * manual workflow. */
+    suspend fun repairWorkingCopyWithinScope(
+        sourceRunId: String,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+        selectedSessionIds: Set<String>,
+    ): RepairResult {
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+            ?: error("Source timetable not found")
+        val input = buildSchedulingInputForRun(sourceRun)
+        val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
+        return RepairEngine.repair(
+            input = input,
+            existingAssignments = assignments,
+            existingRoomBySession = resolvedRooms,
+            algorithm = ColoringAlgorithmRegistry.default,
+            selectedSessionIds = selectedSessionIds,
+            fixedSessionIds = emptySet(),
+        )
+    }
+
+    /** Persists exactly the full working timetable produced by the guided Repair workflow. No
+     * optimizer or validator is invoked here; validation has already been performed by the
+     * workflow before choosing what to save. */
+    suspend fun commitRepairWorkflow(
+        sourceRunId: String,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+        violations: List<ConstraintViolation>,
+        optimized: Boolean,
+    ): String {
+        val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val runId = UUID.randomUUID().toString()
+        val run = ScheduleRunEntity(
+            id = runId,
+            name = if (optimized) "${sourceRun?.name ?: "Schedule"} (repaired)" else "${sourceRun?.name ?: "Schedule"} (adjusted)",
+            createdAtEpochMillis = System.currentTimeMillis(),
+            algorithmUsed = if (optimized) "manual-repair-scoped" else "manual-adjustment",
+            mode = ScheduleMode.REPAIR,
+            executionTimeMillis = 0,
+            sessionType = sourceRun?.sessionType ?: SessionTypeEntity.CLASS,
+            periodBlocksEncoded = sourceRun?.periodBlocksEncoded.orEmpty(),
+            activeDaysEncoded = sourceRun?.activeDaysEncoded.orEmpty(),
+            rootRunId = sourceRun?.rootRunId ?: sourceRunId,
+            sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
+        )
+        val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
+        persistRun(run, assignments, resolvedRooms, violations)
+        return runId
+    }
+
     suspend fun commitManualRepair(
         sourceRunId: String,
         assignments: Map<String, Timeslot>,

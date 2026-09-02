@@ -216,20 +216,37 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
 
     val liveSwapIds = viewModel.lastSwapSessionIds
     if (liveSwapIds.size == 2) {
-        val liveRows = viewModel.allSessions
-            .filter { it.sessionId in liveSwapIds }
-            .map { viewModel.currentRowForDisplay(it) }
+        val beforeRows = viewModel.lastSwapBeforeRows
+        val afterRows = viewModel.lastSwapAfterRows
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Latest swap • updated live", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                liveRows.forEach { row ->
-                    Text(
-                        "${row.subjectName ?: "—"} • ${row.teacherName ?: "—"} → ${row.dayLabel}, ${row.startTime} • ${row.roomName ?: "Unassigned"}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Latest swap • live draft", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                liveSwapIds.forEach { id ->
+                    val before = beforeRows[id]
+                    val after = afterRows[id]
+                    if (before != null && after != null) {
+                        Text("${after.subjectName ?: "—"} • ${after.teacherName ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+                        Text("Before: ${before.dayLabel}, ${before.startTime} • ${before.roomName ?: "Unassigned"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("After:  ${after.dayLabel}, ${after.startTime} • ${after.roomName ?: "Unassigned"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+
+    viewModel.repairMessage?.let { message ->
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(message, style = MaterialTheme.typography.bodyMedium)
+                val candidates = viewModel.scopeExpansionLabels()
+                candidates.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                if (viewModel.scopeExpansionCandidates.isNotEmpty()) {
+                    Button(onClick = { viewModel.expandRepairScope() }, enabled = !viewModel.busy) {
+                        Text("Expand scope & Repair")
+                    }
                 }
             }
         }

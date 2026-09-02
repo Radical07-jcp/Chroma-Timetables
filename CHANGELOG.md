@@ -5,6 +5,9 @@
 - Repair now applies manual adjustments against the selected timetable version and creates the repaired version without requiring deletion of the original version first. Manual changes are protected while the repair engine resolves remaining conflicts around them.
 - Repair validation now checks the current unsaved working timetable rather than validating the original source version.
 - Manual repair preview now shows the latest swap live, including the two affected sessions' updated time/room placement, even when a swapped session leaves the current filter scope.
+- Repair & Save now treats a clean manual swap as an exact full-timetable adjustment without invoking optimization. When a swap introduces a conflict, only sessions explicitly included in the Repair scope are allowed to move; all other sessions remain frozen while still participating as constraints.
+- If the scoped repair cannot resolve a newly introduced conflict because it requires an outside schedule, the workflow stops without changing or saving that result and offers an explicit scope-expansion action.
+- The Repair preview keeps swapped sessions visible after they move across selected periods/rooms, and the live swap card shows before/after placements from the same working draft that will be saved.
 
 ### Release Metadata
 - Android `versionCode`: 9

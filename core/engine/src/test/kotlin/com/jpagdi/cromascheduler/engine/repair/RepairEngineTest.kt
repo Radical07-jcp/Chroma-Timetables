@@ -80,4 +80,39 @@ class RepairEngineTest {
         assertTrue(result.remainingViolations.isEmpty())
     }
 
+    @Test
+    fun `scoped repair can move only selected sessions while frozen timetable remains unchanged`() {
+        val sessions = listOf(
+            session("SELECTED_A", teacherId = "T1"),
+            session("SELECTED_B", teacherId = "T1"),
+            session("FROZEN", teacherId = "T2"),
+        )
+        val input = SchedulingInput(
+            sessions = sessions,
+            availableTimeslotsBySession = sessions.associate { it.id to weekPool },
+            rooms = emptyList(),
+            sectionStudentCounts = emptyMap(),
+            blockedTeacherSlots = emptyMap(),
+            blockedRoomSlots = emptyMap(),
+            definedPeriodsByDay = mapOf(1 to (0..7).toSet()),
+        )
+        val frozenPlacement = Timeslot(1, 5)
+        val existingAssignments = mapOf(
+            "SELECTED_A" to Timeslot(1, 0),
+            "SELECTED_B" to Timeslot(1, 0),
+            "FROZEN" to frozenPlacement,
+        )
+
+        val result = RepairEngine.repair(
+            input = input,
+            existingAssignments = existingAssignments,
+            existingRoomBySession = emptyMap(),
+            selectedSessionIds = setOf("SELECTED_A", "SELECTED_B"),
+        )
+
+        assertEquals(frozenPlacement, result.assignments["FROZEN"], "A frozen outside-scope session must never move")
+        assertTrue(result.assignments.getValue("SELECTED_A") != result.assignments.getValue("SELECTED_B"), "Selected scope must be repairable")
+        assertTrue(result.remainingViolations.isEmpty())
+    }
+
 }
