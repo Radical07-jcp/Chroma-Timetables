@@ -872,7 +872,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
             existingRoomBySession = resolvedRooms,
             algorithm = ColoringAlgorithmRegistry.default,
             selectedSessionIds = selectedSessionIds,
-            fixedSessionIds = emptySet(),
+            fixedSessionIds = input.sessions.map { it.id }.toSet() - selectedSessionIds,
         )
     }
 
@@ -887,11 +887,16 @@ class ScheduleRepository(private val database: CromaDatabase) {
         optimized: Boolean,
     ): String {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
+        val rootRunId = sourceRun?.rootRunId ?: sourceRunId
+        val latestLineageTimestamp = database.scheduleRunDao().getLineage(rootRunId).maxOfOrNull { it.createdAtEpochMillis } ?: 0L
+        // Guarantee strict lineage ordering even when a Repair save happens within the same
+        // millisecond as its source. The detail screen's latest entry must be this new run.
+        val createdAt = maxOf(System.currentTimeMillis(), latestLineageTimestamp + 1L)
         val runId = UUID.randomUUID().toString()
         val run = ScheduleRunEntity(
             id = runId,
             name = if (optimized) "${sourceRun?.name ?: "Schedule"} (repaired)" else "${sourceRun?.name ?: "Schedule"} (adjusted)",
-            createdAtEpochMillis = System.currentTimeMillis(),
+            createdAtEpochMillis = createdAt,
             algorithmUsed = if (optimized) "manual-repair-scoped" else "manual-adjustment",
             mode = ScheduleMode.REPAIR,
             executionTimeMillis = 0,
@@ -903,7 +908,36 @@ class ScheduleRepository(private val database: CromaDatabase) {
         )
         val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
         persistRun(run, assignments, resolvedRooms, violations)
+        verifyPersistedRepairWorkflow(runId, assignments, resolvedRooms)
         return runId
+    }
+
+    /** Hard persistence invariant for guided Repair: the generated run must exactly equal the
+     * working copy supplied by the workflow. A silent mismatch is worse than a failed save. */
+    private suspend fun verifyPersistedRepairWorkflow(
+        runId: String,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String>,
+    ) {
+        val persistedRows = database.scheduleRunDao().getAssignmentsFor(runId)
+        check(guidedRepairPersistenceMatches(persistedRows, assignments, roomBySession)) {
+            "Guided Repair persistence mismatch: saved timetable differs from working draft"
+        }
+    }
+
+    /** Pure persistence invariant used by the guided Repair save path and its regression tests. */
+    internal fun guidedRepairPersistenceMatches(
+        persistedRows: List<ScheduleAssignmentEntity>,
+        assignments: Map<String, Timeslot>,
+        roomBySession: Map<String, String?>,
+    ): Boolean {
+        val persisted = persistedRows.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
+        val persistedRooms = persistedRows.associate { it.sessionId to it.roomId }
+        val expectedRooms = assignments.keys.associateWith { roomBySession[it] }
+        val actualRooms = assignments.keys.associateWith { persistedRooms[it] }
+        return persisted == assignments &&
+            actualRooms == expectedRooms &&
+            persistedRows.map { it.sessionId }.toSet() == assignments.keys
     }
 
     suspend fun commitManualRepair(

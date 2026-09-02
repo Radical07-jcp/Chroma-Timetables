@@ -108,6 +108,7 @@ class RepairEngineTest {
             existingAssignments = existingAssignments,
             existingRoomBySession = emptyMap(),
             selectedSessionIds = setOf("SELECTED_A", "SELECTED_B"),
+            fixedSessionIds = setOf("FROZEN"),
         )
 
         assertEquals(frozenPlacement, result.assignments["FROZEN"], "A frozen outside-scope session must never move")

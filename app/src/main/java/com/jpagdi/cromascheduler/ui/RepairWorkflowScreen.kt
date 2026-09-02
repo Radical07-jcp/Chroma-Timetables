@@ -1,5 +1,6 @@
 package com.jpagdi.cromascheduler.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -214,29 +215,6 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
         )
     }
 
-    val liveSwapIds = viewModel.lastSwapSessionIds
-    if (liveSwapIds.size == 2) {
-        val beforeRows = viewModel.lastSwapBeforeRows
-        val afterRows = viewModel.lastSwapAfterRows
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Latest swap • live draft", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                liveSwapIds.forEach { id ->
-                    val before = beforeRows[id]
-                    val after = afterRows[id]
-                    if (before != null && after != null) {
-                        Text("${after.subjectName ?: "—"} • ${after.teacherName ?: "—"}", style = MaterialTheme.typography.bodyMedium)
-                        Text("Before: ${before.dayLabel}, ${before.startTime} • ${before.roomName ?: "Unassigned"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("After:  ${after.dayLabel}, ${after.startTime} • ${after.roomName ?: "Unassigned"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-    }
-
     viewModel.repairMessage?.let { message ->
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -275,20 +253,36 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
                         if (adjustBy != null) m.clickable { pickerForSession = row } else m
                     },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    border = if (viewModel.isSessionChanged(row.sessionId)) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            HighlightableField("${row.dayLabel}, ${row.startTime}", adjustBy == RepairDimension.PERIOD)
+                            HighlightableField(
+                                "${row.dayLabel}, ${row.startTime}",
+                                viewModel.isTimeslotChanged(row.sessionId),
+                            )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            HighlightableField(row.subjectName ?: "—", adjustBy == RepairDimension.SUBJECT)
+                            HighlightableField(
+                                row.subjectName ?: "—",
+                                false,
+                            )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                            HighlightableField(row.teacherName ?: "—", adjustBy == RepairDimension.TEACHER)
+                            HighlightableField(
+                                row.teacherName ?: "—",
+                                false,
+                            )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            HighlightableField(row.sectionName ?: "—", adjustBy == RepairDimension.CLASS)
+                            HighlightableField(
+                                row.sectionName ?: "—",
+                                false,
+                            )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            HighlightableField(row.roomName ?: "Unassigned", adjustBy == RepairDimension.ROOM)
+                            HighlightableField(
+                                row.roomName ?: "Unassigned",
+                                viewModel.isRoomChanged(row.sessionId),
+                            )
                         }
                     }
                 }

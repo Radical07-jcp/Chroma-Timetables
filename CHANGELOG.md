@@ -1,3 +1,18 @@
+## v1.0.9 — Guided Repair Integrity Fix
+
+### Fixed
+- Guided Repair now persists and verifies the exact working timetable instead of trusting the save path silently. A persistence mismatch fails the save rather than producing an unchanged or partial result.
+- Fixed rapid-save lineage ordering so a newly created Repair version is always newer than the source version, preventing the detail screen from selecting the old timetable when timestamps collide.
+- Scoped conflict Repair now explicitly freezes every session outside the user-authorized scope and rejects any engine result that attempts to move a frozen session.
+- A manual swap no longer silently grants Repair authority to additional sessions; scope expansion is only granted by the explicit “Expand scope & Repair” action.
+- Repair Preview now uses the working timetable directly, removes the duplicate “Latest swap • live draft” card, and highlights changed rows plus changed time/room cells.
+- Added stronger regression coverage around scoped/frozen Repair behavior.
+- Added a direct guided-Repair persistence regression suite covering exact clean-swap persistence and rejecting stale, missing, or extra assignment rows.
+
+### Release Metadata
+- Android `versionCode`: 10
+- Android `versionName`: 1.0.9
+
 ## v1.0.8 — Active Version & Live Repair Fix
 
 ### Fixed

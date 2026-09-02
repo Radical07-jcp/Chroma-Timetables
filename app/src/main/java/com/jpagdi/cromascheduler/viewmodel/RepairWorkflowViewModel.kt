@@ -120,6 +120,21 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     private var changedSessionIds: Set<String> = emptySet()
 
+    /** True when the working draft differs from the source timetable for this session. */
+    fun isSessionChanged(sessionId: String): Boolean = isTimeslotChanged(sessionId) || isRoomChanged(sessionId)
+
+    /** True when the working draft moved this session to a different day/period. */
+    fun isTimeslotChanged(sessionId: String): Boolean {
+        val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
+        return workingTimeslots[sessionId]?.let { it.dayOfWeek != original.day || it.periodIndex != original.period } == true
+    }
+
+    /** True when the working draft changed this session's room. */
+    fun isRoomChanged(sessionId: String): Boolean {
+        val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
+        return workingRooms[sessionId] != original.roomId
+    }
+
     fun clearError() {
         errorMessage = null
     }
@@ -289,7 +304,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
             val b = workingRooms[bId]
             workingRooms = workingRooms + (aId to b) + (bId to a)
         }
-        repairScopeSessionIds = repairScopeSessionIds + aId + bId
+        // A swap never grants new repair authority. The selected Repair scope remains explicit.
         pendingChanges += 1
         lastSwapSessionIds = setOf(aId, bId)
         lastSwapBeforeRows = before
@@ -361,6 +376,16 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
                     } else {
                         "The adjustment is still conflicting within the current scope. No outside schedule was changed."
                     }
+                    return@launch
+                }
+
+                val frozenSessionIds = allSessions.map { it.sessionId }.toSet() - repairScopeSessionIds
+                val changedOutsideScope = frozenSessionIds.any { sessionId ->
+                    result.assignments[sessionId] != workingTimeslots[sessionId] ||
+                        result.roomBySession[sessionId] != workingRooms[sessionId]
+                }
+                if (changedOutsideScope) {
+                    repairMessage = "Repair attempted to change a schedule outside the selected scope. Nothing was saved. Expand the scope explicitly if those schedules must be movable."
                     return@launch
                 }
 
