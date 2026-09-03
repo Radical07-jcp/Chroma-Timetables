@@ -34,7 +34,7 @@ import com.jpagdi.cromascheduler.data.entity.*
         ScheduleAssignmentEntity::class,
         ConflictRecordEntity::class,
     ],
-    version = 8, // schedule_runs now stores an immutable source-data snapshot per timetable
+    version = 9, // schedule_assignments now supports per-run teacher/subject/class identity overrides
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -143,6 +143,21 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
 }
 
 /**
+ * v8 -> v9: adds schedule_assignments.overrideTeacherId/overrideSubjectId/overrideSectionId —
+ * the guided Repair workflow's multi-select "Adjust by" needs a way to swap ONE identity field
+ * (say, just Class) between two sessions for a single run while leaving day/period/room and the
+ * shared roster-level SessionEntity untouched. All three default NULL, meaning every existing
+ * assignment keeps using its session's own roster identity exactly as before this migration.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE schedule_assignments ADD COLUMN overrideTeacherId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE schedule_assignments ADD COLUMN overrideSubjectId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE schedule_assignments ADD COLUMN overrideSectionId TEXT DEFAULT NULL")
+    }
+}
+
+/**
  * The only place Room.databaseBuilder() gets called — kept inside :core:data so
  * Room stays this module's implementation detail. :app's AppContainer calls this
  * function instead of touching Room directly, which is also what was actually
@@ -154,5 +169,5 @@ fun buildCromaDatabase(context: Context): CromaDatabase = Room.databaseBuilder(
     CromaDatabase::class.java,
     CromaDatabase.DATABASE_NAME,
 )
-    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
     .build()

@@ -29,17 +29,17 @@ enum class RepairWorkflowStep { PICK_TYPE, PICK_ENTITIES, PREVIEW }
  * case with nothing to "fix" in the validator's sense, so every teacher/room/class/subject/
  * period is selectable here regardless of whether it's ever shown up in a conflict.
  *
- * The dropdown shown on the Preview step ("Adjust by: Class/Subject/Time period/Room" etc, the
- * four dimensions other than the one picked in step 1) only changes how swap candidates are
- * FOUND and LABELED — a planner thinks "swap 7A's slot with 7B's" or "give this room to History
- * instead", not "swap period 3 with period 5". Underneath, every adjustment is the same
- * operation the engine already uses elsewhere (Optimize/Repair): exchange two sessions'
- * timeslot and/or room. Which field(s) move depends on the dimension: Time period swaps just
- * the timeslot, Room swaps just the room, Class/Subject/Teacher swap the whole placement (both)
- * since those aren't per-run assignment fields of their own.
+ * The checklist shown on the Preview step ("Adjust by: Class / Subject / Teacher / Period / Room")
+ * is a genuine multi-select — whichever boxes are checked are the ONLY fields that trade between
+ * the two rows in a swap; everything unchecked stays anchored exactly where it was. Time period
+ * and Room are per-run assignment fields, so "swap just that" was always straightforward. Class,
+ * Subject, and Teacher are normally baked into a session's roster identity (fixed across every
+ * run) — swapping just one of those needs a per-run identity override (see
+ * ScheduleRepository.IdentityOverride) so, say, "swap Class" can hand a teacher a different
+ * section at their existing time/room without touching the shared roster data or any other run.
  *
- * All edits happen in memory (working copies of the timeslot/room maps) so a planner can make
- * several swaps while previewing before committing — [save] persists the whole result as ONE
+ * All edits happen in memory (working copies of the timeslot/room/identity maps) so a planner can
+ * make several swaps while previewing before committing — [save] persists the whole result as ONE
  * new version, not one per tap.
  */
 class RepairWorkflowViewModel(private val repository: ScheduleRepository, private val sourceRunId: String) : ViewModel() {
@@ -48,7 +48,6 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     var dimension by mutableStateOf(RepairDimension.TEACHER)
         private set
-
     var teachers by mutableStateOf<List<TeacherEntity>>(emptyList())
         private set
     var rooms by mutableStateOf<List<RoomEntity>>(emptyList())
@@ -73,6 +72,12 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     var workingRooms by mutableStateOf<Map<String, String?>>(emptyMap())
         private set
+    var workingTeacherOverride by mutableStateOf<Map<String, String?>>(emptyMap())
+        private set
+    var workingSubjectOverride by mutableStateOf<Map<String, String?>>(emptyMap())
+        private set
+    var workingSectionOverride by mutableStateOf<Map<String, String?>>(emptyMap())
+        private set
     var pendingChanges by mutableStateOf(0)
         private set
 
@@ -94,8 +99,9 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
      * moving away from their originally selected period/room. */
     private var scopeGroupLabelBySessionId: Map<String, String> = emptyMap()
 
-    /** null = just previewing; non-null = a dimension is picked and its cells are highlighted/tappable. */
-    var adjustBy by mutableStateOf<RepairDimension?>(null)
+    /** Every dimension currently checked in "Adjust by". Empty = just previewing, nothing
+     * tappable. A swap trades exactly these fields between the two tapped rows — nothing else. */
+    var adjustBy by mutableStateOf<Set<RepairDimension>>(emptySet())
         private set
 
     /** The session tapped first in the current swap — waiting on a second tap to complete the swap. */
@@ -120,8 +126,11 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         private set
     private var changedSessionIds: Set<String> = emptySet()
 
-    /** True when the working draft differs from the source timetable for this session. */
-    fun isSessionChanged(sessionId: String): Boolean = isTimeslotChanged(sessionId) || isRoomChanged(sessionId)
+    /** True when the working draft differs from the source timetable for this session, in any
+     * of the five swappable fields. */
+    fun isSessionChanged(sessionId: String): Boolean =
+        isTimeslotChanged(sessionId) || isRoomChanged(sessionId) ||
+            isTeacherChanged(sessionId) || isSubjectChanged(sessionId) || isClassChanged(sessionId)
 
     /** True when the working draft moved this session to a different day/period. */
     fun isTimeslotChanged(sessionId: String): Boolean {
@@ -133,6 +142,24 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
     fun isRoomChanged(sessionId: String): Boolean {
         val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
         return workingRooms[sessionId] != original.roomId
+    }
+
+    /** True when a Teacher swap moved a different teacher into this session's slot. */
+    fun isTeacherChanged(sessionId: String): Boolean {
+        val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
+        return workingTeacherOverride[sessionId] != original.teacherId
+    }
+
+    /** True when a Subject swap changed what's being taught in this session's slot. */
+    fun isSubjectChanged(sessionId: String): Boolean {
+        val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
+        return workingSubjectOverride[sessionId] != original.subjectId
+    }
+
+    /** True when a Class swap changed which section occupies this session's slot. */
+    fun isClassChanged(sessionId: String): Boolean {
+        val original = allSessions.firstOrNull { it.sessionId == sessionId } ?: return false
+        return workingSectionOverride[sessionId] != original.sectionId
     }
 
     fun clearError() {
@@ -149,6 +176,9 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
             allSessions = repository.getRunSessionStates(sourceRunId)
             workingTimeslots = allSessions.associate { it.sessionId to Timeslot(it.day, it.period) }
             workingRooms = allSessions.associate { it.sessionId to it.roomId }
+            workingTeacherOverride = allSessions.associate { it.sessionId to it.teacherId }
+            workingSubjectOverride = allSessions.associate { it.sessionId to it.subjectId }
+            workingSectionOverride = allSessions.associate { it.sessionId to it.sectionId }
             baselineViolationKeys = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms)
                 .map(::violationKey)
                 .toSet()
@@ -177,7 +207,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
 
     fun goToPreview() {
         step = RepairWorkflowStep.PREVIEW
-        adjustBy = null
+        adjustBy = emptySet()
         pendingSwapSessionId = null
         lastSwapSessionIds = emptySet()
         lastSwapBeforeRows = emptyMap()
@@ -191,7 +221,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
 
     fun backToEntities() {
         step = RepairWorkflowStep.PICK_ENTITIES
-        adjustBy = null
+        adjustBy = emptySet()
         pendingSwapSessionId = null
     }
 
@@ -199,8 +229,10 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         step = RepairWorkflowStep.PICK_TYPE
     }
 
-    fun selectAdjustBy(d: RepairDimension?) {
-        adjustBy = d
+    /** Toggles one dimension in the "Adjust by" checklist. Multiple can be checked at once — a
+     * swap trades every checked field between the two rows in one action. */
+    fun toggleAdjustBy(d: RepairDimension) {
+        adjustBy = if (d in adjustBy) adjustBy - d else adjustBy + d
         pendingSwapSessionId = null
     }
 
@@ -208,8 +240,14 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
     fun currentRowForDisplay(base: ScheduleRepository.RunSessionState): ScheduleRepository.RunSessionState {
         val ts = workingTimeslots[base.sessionId] ?: Timeslot(base.day, base.period)
         val roomId = workingRooms[base.sessionId]
+        val teacherId = workingTeacherOverride[base.sessionId] ?: base.teacherId
+        val subjectId = workingSubjectOverride[base.sessionId] ?: base.subjectId
+        val sectionId = workingSectionOverride[base.sessionId] ?: base.sectionId
         val slot = periods.find { it.dayOfWeek == ts.dayOfWeek && it.periodIndex == ts.periodIndex }
         val roomName = if (roomId == null) null else (rooms.find { it.id == roomId }?.name ?: base.roomName)
+        val teacherName = if (teacherId == null) null else (teachers.find { it.id == teacherId }?.name ?: base.teacherName)
+        val subjectName = if (subjectId == null) null else (subjects.find { it.id == subjectId }?.name ?: base.subjectName)
+        val sectionName = if (sectionId == null) null else (sections.find { it.id == sectionId }?.name ?: base.sectionName)
         return base.copy(
             day = ts.dayOfWeek,
             period = ts.periodIndex,
@@ -218,6 +256,12 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
             dayLabel = ScheduleRepository.dayLabelFor(ts.dayOfWeek),
             roomId = roomId,
             roomName = roomName,
+            teacherId = teacherId,
+            teacherName = teacherName,
+            subjectId = subjectId,
+            subjectName = subjectName,
+            sectionId = sectionId,
+            sectionName = sectionName,
         )
     }
 
@@ -276,33 +320,52 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
             pendingSwapSessionId = null
             return
         }
-        performSwap(armed, sessionId, adjustBy ?: RepairDimension.PERIOD)
+        if (adjustBy.isNotEmpty()) performSwap(armed, sessionId, adjustBy)
         pendingSwapSessionId = null
     }
 
-    /** Directly swap two sessions by [adjustBy] — used by the "tap a cell -> pick from the list
-     * of available options" picker (the primary interaction), rather than the two-tap flow. */
+    /** Directly swap two sessions by every field checked in [adjustBy] — used by the "tap a cell
+     * -> pick from the list of available options" picker (the primary interaction), rather than
+     * the two-tap flow. */
     fun swapWith(sourceSessionId: String, targetSessionId: String) {
-        performSwap(sourceSessionId, targetSessionId, adjustBy ?: return)
+        if (adjustBy.isEmpty()) return
+        performSwap(sourceSessionId, targetSessionId, adjustBy)
     }
 
-    private fun performSwap(aId: String, bId: String, by: RepairDimension) {
+    /** Exchanges exactly the fields named in [by] between two sessions — nothing else moves.
+     * Period -> day+period. Room -> roomId. Teacher/Subject/Class -> the matching per-run
+     * identity override, so the swap lands on THIS run only and never touches the shared
+     * roster-level session identity. */
+    private fun performSwap(aId: String, bId: String, by: Set<RepairDimension>) {
         val before = allSessions
             .filter { it.sessionId == aId || it.sessionId == bId }
             .associate { it.sessionId to currentRowForDisplay(it) }
-        val swapTime = by == RepairDimension.PERIOD || by == RepairDimension.CLASS || by == RepairDimension.SUBJECT || by == RepairDimension.TEACHER
-        val swapRoom = by == RepairDimension.ROOM || by == RepairDimension.CLASS || by == RepairDimension.SUBJECT || by == RepairDimension.TEACHER
-        if (swapTime) {
+        if (RepairDimension.PERIOD in by) {
             val a = workingTimeslots[aId]
             val b = workingTimeslots[bId]
             if (a != null && b != null) {
                 workingTimeslots = workingTimeslots + (aId to b) + (bId to a)
             }
         }
-        if (swapRoom) {
+        if (RepairDimension.ROOM in by) {
             val a = workingRooms[aId]
             val b = workingRooms[bId]
             workingRooms = workingRooms + (aId to b) + (bId to a)
+        }
+        if (RepairDimension.TEACHER in by) {
+            val a = workingTeacherOverride[aId]
+            val b = workingTeacherOverride[bId]
+            workingTeacherOverride = workingTeacherOverride + (aId to b) + (bId to a)
+        }
+        if (RepairDimension.SUBJECT in by) {
+            val a = workingSubjectOverride[aId]
+            val b = workingSubjectOverride[bId]
+            workingSubjectOverride = workingSubjectOverride + (aId to b) + (bId to a)
+        }
+        if (RepairDimension.CLASS in by) {
+            val a = workingSectionOverride[aId]
+            val b = workingSectionOverride[bId]
+            workingSectionOverride = workingSectionOverride + (aId to b) + (bId to a)
         }
         // A swap never grants new repair authority. The selected Repair scope remains explicit.
         pendingChanges += 1
@@ -314,12 +377,35 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         scopeExpansionCandidates = emptySet()
     }
 
+    /** Diffs the working identity-override maps against each session's original roster identity,
+     * producing only the entries that actually changed — an unchanged field is never persisted
+     * as an override. */
+    private fun currentIdentityOverrides(): Map<String, ScheduleRepository.IdentityOverride> {
+        val result = mutableMapOf<String, ScheduleRepository.IdentityOverride>()
+        for (original in allSessions) {
+            val teacherId = workingTeacherOverride[original.sessionId]
+            val subjectId = workingSubjectOverride[original.sessionId]
+            val sectionId = workingSectionOverride[original.sessionId]
+            val teacherChanged = teacherId != original.teacherId
+            val subjectChanged = subjectId != original.subjectId
+            val sectionChanged = sectionId != original.sectionId
+            if (teacherChanged || subjectChanged || sectionChanged) {
+                result[original.sessionId] = ScheduleRepository.IdentityOverride(
+                    teacherId = if (teacherChanged) teacherId else null,
+                    subjectId = if (subjectChanged) subjectId else null,
+                    sectionId = if (sectionChanged) sectionId else null,
+                )
+            }
+        }
+        return result
+    }
+
     fun validateWorking() {
         if (busy) return
         viewModelScope.launch {
             busy = true
             try {
-                val violations = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms)
+                val violations = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms, currentIdentityOverrides())
                 validationMessage = when {
                     violations.isEmpty() -> "Current adjustments are clean."
                     violations.size == 1 -> "1 conflict remains in the current adjustments."
@@ -338,7 +424,8 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
         viewModelScope.launch {
             busy = true
             try {
-                val currentViolations = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms)
+                val overrides = currentIdentityOverrides()
+                val currentViolations = repository.validateWorkingCopy(sourceRunId, workingTimeslots, workingRooms, overrides)
                 val introducedViolations = currentViolations.filter { violationKey(it) !in baselineViolationKeys }
 
                 if (introducedViolations.isEmpty()) {
@@ -349,6 +436,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
                         roomBySession = workingRooms,
                         violations = currentViolations,
                         optimized = false,
+                        identityOverrides = overrides,
                     )
                     saved = true
                     return@launch
@@ -362,6 +450,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
                     assignments = workingTimeslots,
                     roomBySession = workingRooms,
                     selectedSessionIds = repairScopeSessionIds,
+                    identityOverrides = overrides,
                 )
 
                 val unresolvedNew = result.remainingViolations.filter { violationKey(it) !in baselineViolationKeys }
@@ -395,6 +484,7 @@ class RepairWorkflowViewModel(private val repository: ScheduleRepository, privat
                     roomBySession = result.roomBySession,
                     violations = result.remainingViolations,
                     optimized = true,
+                    identityOverrides = overrides,
                 )
                 workingTimeslots = result.assignments
                 workingRooms = workingRooms + result.roomBySession

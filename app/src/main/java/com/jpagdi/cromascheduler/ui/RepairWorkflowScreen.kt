@@ -181,7 +181,6 @@ private fun EntityRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
     val dimension = viewModel.dimension
     val otherDimensions = RepairDimension.entries.filter { it != dimension }
-    var adjustMenuOpen by remember { mutableStateOf(false) }
     var pickerForSession by remember { mutableStateOf<ScheduleRepository.RunSessionState?>(null) }
 
     Text(
@@ -190,20 +189,34 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
-    ExposedDropdownMenuBox(expanded = adjustMenuOpen, onExpandedChange = { adjustMenuOpen = it }) {
-        OutlinedTextField(
-            value = viewModel.adjustBy?.label ?: "Just viewing — tap to adjust",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Adjust by") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = adjustMenuOpen) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            if (viewModel.adjustBy.isEmpty()) "Adjust by — tap a field below to check what should trade" else "Adjust by",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ExposedDropdownMenu(expanded = adjustMenuOpen, onDismissRequest = { adjustMenuOpen = false }) {
-            DropdownMenuItem(text = { Text("Just viewing") }, onClick = { viewModel.selectAdjustBy(null); adjustMenuOpen = false })
-            otherDimensions.forEach { d ->
-                DropdownMenuItem(text = { Text(d.label) }, onClick = { viewModel.selectAdjustBy(d); adjustMenuOpen = false })
+        otherDimensions.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                pair.forEach { d ->
+                    FilterChip(
+                        selected = d in viewModel.adjustBy,
+                        onClick = { viewModel.toggleAdjustBy(d) },
+                        label = { Text(d.label) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
+        }
+        if (viewModel.adjustBy.isNotEmpty()) {
+            Text(
+                "${viewModel.adjustBy.joinToString(" + ") { it.label }} will trade between the two rows you tap. Everything else stays where it is.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 
@@ -250,7 +263,7 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
                 val adjustBy = viewModel.adjustBy
                 Card(
                     modifier = Modifier.fillMaxWidth().let { m ->
-                        if (adjustBy != null) m.clickable { pickerForSession = row } else m
+                        if (adjustBy.isNotEmpty()) m.clickable { pickerForSession = row } else m
                     },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     border = if (viewModel.isSessionChanged(row.sessionId)) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -260,28 +273,33 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             HighlightableField(
                                 "${row.dayLabel}, ${row.startTime}",
-                                viewModel.isTimeslotChanged(row.sessionId),
+                                active = RepairDimension.PERIOD in adjustBy,
+                                changed = viewModel.isTimeslotChanged(row.sessionId),
                             )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             HighlightableField(
                                 row.subjectName ?: "—",
-                                false,
+                                active = RepairDimension.SUBJECT in adjustBy,
+                                changed = viewModel.isSubjectChanged(row.sessionId),
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             HighlightableField(
                                 row.teacherName ?: "—",
-                                false,
+                                active = RepairDimension.TEACHER in adjustBy,
+                                changed = viewModel.isTeacherChanged(row.sessionId),
                             )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             HighlightableField(
                                 row.sectionName ?: "—",
-                                false,
+                                active = RepairDimension.CLASS in adjustBy,
+                                changed = viewModel.isClassChanged(row.sessionId),
                             )
                             Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             HighlightableField(
                                 row.roomName ?: "Unassigned",
-                                viewModel.isRoomChanged(row.sessionId),
+                                active = RepairDimension.ROOM in adjustBy,
+                                changed = viewModel.isRoomChanged(row.sessionId),
                             )
                         }
                     }
@@ -305,25 +323,19 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
     ) { Text(if (viewModel.busy) "Saving…" else "Save & Repair") }
 
     val tapped = pickerForSession
-    if (tapped != null && viewModel.adjustBy != null) {
-        val adjustBy = viewModel.adjustBy!!
+    if (tapped != null && viewModel.adjustBy.isNotEmpty()) {
+        val checked = viewModel.adjustBy
         val options = viewModel.scopedSessions.filter { it.sessionId != tapped.sessionId }
         AlertDialog(
             onDismissRequest = { pickerForSession = null },
-            title = { Text("Available ${adjustBy.label.lowercase()} options") },
+            title = { Text("Swap ${checked.joinToString(" + ") { it.label.lowercase() }} with…") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (options.isEmpty()) {
                         Text("No other session in this preview to trade with.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         options.forEach { option ->
-                            val label = when (adjustBy) {
-                                RepairDimension.PERIOD -> "${option.dayLabel}, ${option.startTime} — currently ${option.teacherName ?: option.sectionName ?: "—"}"
-                                RepairDimension.ROOM -> "${option.roomName ?: "Unassigned"} — ${option.teacherName ?: "—"}, ${option.dayLabel} ${option.startTime}"
-                                RepairDimension.CLASS -> "${option.sectionName ?: "—"} — ${option.teacherName ?: "—"}, ${option.dayLabel} ${option.startTime}"
-                                RepairDimension.SUBJECT -> "${option.subjectName ?: "—"} — ${option.teacherName ?: "—"}, ${option.dayLabel} ${option.startTime}"
-                                RepairDimension.TEACHER -> "${option.teacherName ?: "—"} — ${option.subjectName ?: "—"}, ${option.dayLabel} ${option.startTime}"
-                            }
+                            val label = "${option.teacherName ?: "—"} • ${option.subjectName ?: "—"} • ${option.sectionName ?: "—"} • ${option.dayLabel}, ${option.startTime} • ${option.roomName ?: "Unassigned"}"
                             Text(
                                 label,
                                 modifier = Modifier
@@ -344,10 +356,14 @@ private fun ColumnScope.PreviewStep(viewModel: RepairWorkflowViewModel) {
 }
 
 @Composable
-private fun HighlightableField(text: String, highlighted: Boolean) {
+private fun HighlightableField(text: String, active: Boolean, changed: Boolean = false) {
     Text(
         text,
-        style = if (highlighted) MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) else MaterialTheme.typography.bodyMedium,
-        color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        style = if (active || changed) MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) else MaterialTheme.typography.bodyMedium,
+        color = when {
+            changed -> MaterialTheme.colorScheme.error
+            active -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurface
+        },
     )
 }

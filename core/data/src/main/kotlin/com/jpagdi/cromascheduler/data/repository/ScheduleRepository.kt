@@ -809,16 +809,19 @@ class ScheduleRepository(private val database: CromaDatabase) {
         return savedAssignments.mapNotNull { a ->
             val session = sessions[a.sessionId] ?: return@mapNotNull null
             val slot = timeslots[a.dayOfWeek to a.periodIndex]
+            val effectiveTeacherId = a.overrideTeacherId ?: session.teacherId
+            val effectiveSubjectId = a.overrideSubjectId ?: session.subjectId
+            val effectiveSectionId = a.overrideSectionId ?: session.sectionId
             RunSessionState(
                 sessionId = session.id,
-                teacherId = session.teacherId,
-                teacherName = session.teacherId?.let { teachers[it]?.name },
+                teacherId = effectiveTeacherId,
+                teacherName = effectiveTeacherId?.let { teachers[it]?.name },
                 roomId = a.roomId,
                 roomName = a.roomId?.let { rooms[it]?.name },
-                sectionId = session.sectionId,
-                sectionName = session.sectionId?.let { sections[it]?.name },
-                subjectId = session.subjectId,
-                subjectName = session.subjectId?.let { subjects[it]?.name },
+                sectionId = effectiveSectionId,
+                sectionName = effectiveSectionId?.let { sections[it]?.name },
+                subjectId = effectiveSubjectId,
+                subjectName = effectiveSubjectId?.let { subjects[it]?.name },
                 day = a.dayOfWeek,
                 period = a.periodIndex,
                 startTime = slot?.startTime ?: "Period ${a.periodIndex}",
@@ -836,6 +839,32 @@ class ScheduleRepository(private val database: CromaDatabase) {
         return timeslotsFor(run)
     }
 
+    /** A guided-Repair identity swap for one session, independent of its day/period/room. Each
+     * null field means "leave that identity alone" — only Class *or* Subject *or* Teacher (or any
+     * combination) trades, never more than what the person actually checked. */
+    data class IdentityOverride(
+        val teacherId: String? = null,
+        val subjectId: String? = null,
+        val sectionId: String? = null,
+    )
+
+    /** Applies guided-Repair identity overrides to a scheduling input's sessions before
+     * validating/repairing, so a "swap Class" (etc.) is checked against what the timetable would
+     * ACTUALLY look like — e.g. the teacher's new class doesn't double-book them — not against
+     * each session's original, unswapped roster identity. */
+    private fun applyIdentityOverrides(input: SchedulingInput, overrides: Map<String, IdentityOverride>): SchedulingInput {
+        if (overrides.isEmpty()) return input
+        val sessions = input.sessions.map { s ->
+            val o = overrides[s.id] ?: return@map s
+            s.copy(
+                teacherId = o.teacherId ?: s.teacherId,
+                subjectId = o.subjectId ?: s.subjectId,
+                sectionId = o.sectionId ?: s.sectionId,
+            )
+        }
+        return input.copy(sessions = sessions)
+    }
+
     /**
      * Commits the manual Repair workflow's edits as one new version. [assignments]/[roomBySession]
      * are the FULL working copy of every session's placement after however many swaps/moves the
@@ -847,10 +876,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
         sourceRunId: String,
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String?>,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ): List<ConstraintViolation> {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
         val input = if (sourceRun != null) buildSchedulingInputForRun(sourceRun) else buildSchedulingInput(emptyList())
-        return validateAssignmentMap(input, assignments, roomBySession)
+        return validateAssignmentMap(applyIdentityOverrides(input, identityOverrides), assignments, roomBySession)
     }
 
     /** Result of the Repair workflow's scoped engine pass. This is deliberately separate from the
@@ -861,10 +891,11 @@ class ScheduleRepository(private val database: CromaDatabase) {
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String?>,
         selectedSessionIds: Set<String>,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ): RepairResult {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
             ?: error("Source timetable not found")
-        val input = buildSchedulingInputForRun(sourceRun)
+        val input = applyIdentityOverrides(buildSchedulingInputForRun(sourceRun), identityOverrides)
         val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
         return RepairEngine.repair(
             input = input,
@@ -885,6 +916,7 @@ class ScheduleRepository(private val database: CromaDatabase) {
         roomBySession: Map<String, String?>,
         violations: List<ConstraintViolation>,
         optimized: Boolean,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ): String {
         val sourceRun = database.scheduleRunDao().getById(sourceRunId)
         val rootRunId = sourceRun?.rootRunId ?: sourceRunId
@@ -907,8 +939,8 @@ class ScheduleRepository(private val database: CromaDatabase) {
             sourceSnapshotEncoded = sourceRun?.sourceSnapshotEncoded.orEmpty(),
         )
         val resolvedRooms = roomBySession.mapNotNull { (sessionId, roomId) -> roomId?.let { sessionId to it } }.toMap()
-        persistRun(run, assignments, resolvedRooms, violations)
-        verifyPersistedRepairWorkflow(runId, assignments, resolvedRooms)
+        persistRun(run, assignments, resolvedRooms, violations, identityOverrides)
+        verifyPersistedRepairWorkflow(runId, assignments, resolvedRooms, identityOverrides)
         return runId
     }
 
@@ -918,9 +950,10 @@ class ScheduleRepository(private val database: CromaDatabase) {
         runId: String,
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String>,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ) {
         val persistedRows = database.scheduleRunDao().getAssignmentsFor(runId)
-        check(guidedRepairPersistenceMatches(persistedRows, assignments, roomBySession)) {
+        check(guidedRepairPersistenceMatches(persistedRows, assignments, roomBySession, identityOverrides)) {
             "Guided Repair persistence mismatch: saved timetable differs from working draft"
         }
     }
@@ -930,13 +963,20 @@ class ScheduleRepository(private val database: CromaDatabase) {
         persistedRows: List<ScheduleAssignmentEntity>,
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String?>,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ): Boolean {
         val persisted = persistedRows.associate { it.sessionId to Timeslot(it.dayOfWeek, it.periodIndex) }
         val persistedRooms = persistedRows.associate { it.sessionId to it.roomId }
         val expectedRooms = assignments.keys.associateWith { roomBySession[it] }
         val actualRooms = assignments.keys.associateWith { persistedRooms[it] }
+        val persistedOverrides = persistedRows.associate {
+            it.sessionId to IdentityOverride(it.overrideTeacherId, it.overrideSubjectId, it.overrideSectionId)
+        }
+        val expectedOverrides = assignments.keys.associateWith { identityOverrides[it] ?: IdentityOverride() }
+        val actualOverrides = assignments.keys.associateWith { persistedOverrides[it] ?: IdentityOverride() }
         return persisted == assignments &&
             actualRooms == expectedRooms &&
+            actualOverrides == expectedOverrides &&
             persistedRows.map { it.sessionId }.toSet() == assignments.keys
     }
 
@@ -1015,11 +1055,22 @@ class ScheduleRepository(private val database: CromaDatabase) {
         assignments: Map<String, Timeslot>,
         roomBySession: Map<String, String>,
         violations: List<ConstraintViolation>,
+        identityOverrides: Map<String, IdentityOverride> = emptyMap(),
     ) {
         database.withTransaction {
             database.scheduleRunDao().upsert(run)
             val assignmentEntities = assignments.map { (sessionId, ts) ->
-                ScheduleAssignmentEntity(run.id, sessionId, ts.dayOfWeek, ts.periodIndex, roomBySession[sessionId])
+                val o = identityOverrides[sessionId]
+                ScheduleAssignmentEntity(
+                    scheduleRunId = run.id,
+                    sessionId = sessionId,
+                    dayOfWeek = ts.dayOfWeek,
+                    periodIndex = ts.periodIndex,
+                    roomId = roomBySession[sessionId],
+                    overrideTeacherId = o?.teacherId,
+                    overrideSubjectId = o?.subjectId,
+                    overrideSectionId = o?.sectionId,
+                )
             }
             database.scheduleRunDao().upsertAssignments(assignmentEntities)
             persistConflicts(run.id, violations)

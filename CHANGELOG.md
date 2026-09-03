@@ -1,3 +1,28 @@
+## v1.0.11 — "Adjust By" Is Now a True Multi-Select Field Swap
+
+### Changed
+- "Adjust by" is now a checklist, not a single choice — Class, Subject, Teacher, Room, and Period can be checked in any combination. A swap trades exactly the checked fields between the two tapped rows; everything unchecked stays anchored to its row.
+- Class/Subject/Teacher swaps previously moved day+period+room together as a bundled "whole placement" trade. They now genuinely swap only that one identity field, matching what Room and Period already did — e.g. "Adjust by: Class" alone now hands two sessions each other's class while both keep their own time and room.
+
+### Added
+- Per-run teacher/subject/class identity overrides (`schedule_assignments.overrideTeacherId` / `overrideSubjectId` / `overrideSectionId`, migration v8→v9) so a guided-Repair identity swap applies to this one run/version only — the shared roster-level session data, and every other run built from it, is untouched.
+- Validate now checks the swapped identity, not just the swapped time/room — a Teacher/Subject/Class swap that creates a real double-booking is caught immediately instead of only being checked against the original roster assignment.
+- Regression coverage for the new override path: a Class-only swap persists with day/period/room untouched, and a saved row silently missing its expected override is rejected by the same invariant check introduced in v1.0.9.
+
+### Release Metadata
+- Android `versionCode`: 12
+- Android `versionName`: 1.0.11
+
+## v1.0.10 — Repair Scope Highlighting Fix
+
+### Fixed
+- v1.0.9's Preview rewrite replaced the "Adjust by" static field highlight (the visual cue showing which field — Teacher/Room/Class/Subject/Period — is the one you're currently working with) with a change-only highlight, and left Subject/Teacher/Class permanently unhighlighted regardless of selection. Since a swap only ever moves Time and Room, this made real swaps look like nothing happened: the far more visible Subject/Teacher/Class text stayed put with no highlight anywhere to anchor attention. Restored the static per-dimension highlight (shown the moment a dimension is picked, before any swap) alongside a visually distinct "this value actually changed" state, so a genuine change is unmistakable from a merely-selected field.
+- Guided Repair's persistence path (`commitRepairWorkflow`, the post-save invariant check, frozen-session rejection, lineage-timestamp ordering) was re-verified against this build and is confirmed working as v1.0.9 described — the swap itself was always being computed and saved correctly; only the on-screen feedback was misleading.
+
+### Release Metadata
+- Android `versionCode`: 11
+- Android `versionName`: 1.0.10
+
 ## v1.0.9 — Guided Repair Integrity Fix
 
 ### Fixed

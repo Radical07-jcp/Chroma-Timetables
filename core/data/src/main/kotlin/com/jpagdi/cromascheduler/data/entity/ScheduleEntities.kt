@@ -162,12 +162,21 @@ data class ScheduleRunEntity(
     tableName = "schedule_assignments",
     primaryKeys = ["scheduleRunId", "sessionId"],
 )
+/** [overrideTeacherId]/[overrideSubjectId]/[overrideSectionId] let the guided Repair workflow
+ * swap ONLY that one identity field between two sessions for this run, independent of
+ * day/period/room — e.g. "swap Class" trades sectionId while leaving everything else on the
+ * row untouched. null means "use the session's own roster-defined identity" (the common case,
+ * and the only case before the guided workflow existed) — these never mutate the shared
+ * SessionEntity, so other runs/versions built from the same roster are unaffected. */
 data class ScheduleAssignmentEntity(
     val scheduleRunId: String,
     val sessionId: String,
     val dayOfWeek: Int,
     val periodIndex: Int,
     val roomId: String?,
+    val overrideTeacherId: String? = null,
+    val overrideSubjectId: String? = null,
+    val overrideSectionId: String? = null,
 )
 
 @Entity(tableName = "conflict_records")
